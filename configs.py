@@ -5,17 +5,24 @@ class Config(dict):
         return self[attr]
 
 
+DefaultEpiPolicy = Config(
+    state_dim=8,
+    num_g=2,
+
+    hidden_dim=64,
+    num_layers=2,
+    dropout=0.1
+)
+
+
 DefaultPolicy = Config(
-    state_dim=4,
-    action_dim=2,
+    state_dim=8,
+    action_dim=4,
 
-    num_options=4,
-    option_dim=8,
-    num_pi=4,
+    num_g=2,
+    rank_dim=4,
 
-    hidden_dim=128,
-    num_layers=4,
-    num_heads=4,
-
+    hidden_dim=64,
+    num_layers=2,
     dropout=0.1
 )
