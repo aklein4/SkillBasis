@@ -1,155 +1,95 @@
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import nn
+from torch.nn import functional as F
 
 import configs
+from model_utils import SkipNet, MobileNet
 
 
-class _ForwardModel(nn.Module):
-    def __init__(self, config=configs.DefaultConfig):
-        """ Base model for Q and Pi models
-
-        Args:
-            config (Config, optional): Network structure information. Defaults to DefaultConfig.
-        """
-
+class Option(nn.Module):
+    def __init__(self, config=configs.DefaultOption):
         super().__init__()
         self.config = config
 
-        # input dim to hidden dim
-        self.input_layer = nn.Sequential(
-            nn.Linear(self.config.n_inputs, self.config.h_dim // 2),
-            nn.Dropout(self.config.dropout),
-            nn.GELU()
+        self.net = SkipNet(
+            config.state_dim,
+            config.hidden_dim,
+            config.option_dim,
+            config.num_layers,
+            config.dropout
         )
 
-        # hidden layers
-        self.layers = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(self.config.h_dim, self.config.h_dim // 2),
-                nn.Dropout(self.config.dropout),
-                nn.GELU()
-            ) for _ in range(self.config.n_layers)
+    
+    def forward(self, s):
+        return self.net(s)
+
+
+class Policy(nn.Module):
+    def __init__(self, config=configs.DefaultPolicy):
+        super().__init__()
+        self.config = config
+
+        self.input_layer = nn.Linear(config.state_dim, config.hidden_dim)
+
+        self.q_layers = nn.ModuleList([
+            nn.Linear(config.option_dim, config.hidden_dim)
+            for _ in range(config.num_layers)
         ])
 
-        # overloaded in child class
-        self.output_layer = None
+        self.kv_layers = nn.ModuleList([
+            nn.Linear(config.hidden_dim, 2*config.hidden_dim*config.num_pi)
+            for _ in range(config.num_layers)
+        ])
 
+        self.f_layers = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(config.hidden_dim, config.hidden_dim),
+                nn.GELU(),
+                nn.Dropout(config.dropout)
+            )
+            for _ in range(config.num_layers)
+        ])
 
-    def _network(self, x):
-        """ A forward call through the network
+        self.att_layers = nn.ModuleList([
+            nn.MultiheadAttention(
+                config.hidden_dim,
+                config.num_heads,
+                dropout=0,
+                batch_first=True,
+                bias=False
+            )
+            for _ in range(config.num_layers)
+        ])
 
-        Args:
-            x (tensor): State tensor (batched or not)
+        self.output_layer = nn.Linear(config.hidden_dim, config.action_dim)
 
-        Returns:
-            tensor: Output of the network
-        """
+        self.option_embeddings = nn.Embedding(config.num_options, config.option_dim)
 
-        # state -> hidden
-        h = self.input_layer(x)
-        prev = h
-
-        # layers with skip connections
-        for layer in self.layers:
-            temp = h
-            h = layer(torch.cat([h, prev], dim=-1))
-            prev = temp
-
-        # hidden -> output
-        y = self.output_layer(torch.cat([h, prev], dim=-1))
-        return y
-
-
-    def forward(self, x):
-        """ Overloadable forward call
-
-        Args:
-            x (tensor): State tensor (batched or not)
-
-        Raises:
-            NotImplementedError: Implemented in child class
-        """
-        raise NotImplementedError("Cannot call forward on abstract class _ForwardModel")
-
-
-class BaselineModel(_ForwardModel):
-    def __init__(self, config=configs.DefaultConfig):
-        super().__init__(config)
-
-        self.output_layer = nn.Linear(self.config.h_dim, 1)
     
+    def _layer(self, x, o, i):
+        batch_size = x.shape[0]
 
-    def forward(self, x):
-        return self._network(x)
-    
+        q = self.q_layers[i](self.option_embeddings(o))
+        kv = self.kv_layers[i](x).reshape(batch_size, self.config.num_pi, self.config.hidden_dim, 2)
+        k, v = torch.chunk(kv, 2, dim=-1)
 
-class ObsEncoder(_ForwardModel):
-    def __init__(self, config=configs.DefaultEncoderConfig):
-        super().__init__(config)
-
-        self.output_layer = nn.Linear(self.config.h_dim, self.config.enc_dim)
-    
-
-    def forward(self, x):
-        return self._network(x)
-
-
-class PolicyModel(nn.Module):
-
-    def __init__(self, encoder_config=configs.DefaultEncoderConfig, config=configs.DefaultDecoderConfig):
-        super().__init__()
-
-        self.config = config
-
-        self.encoder = ObsEncoder(encoder_config)
-
-        layer = nn.TransformerDecoderLayer(
-            d_model=self.config.d_model,
-            nhead=self.config.nhead,
-            dim_feedforward=self.config.dim_feedforward,
-            dropout=self.config.dropout,
-        )
-        self.decoder = nn.TransformerDecoder(
-            layer,
-            num_layers=self.config.num_layers,
-        )
-
-        embedding = torch.zeros(
-            self.config.seq_len,
-            self.config.d_model,
-        ).unsqueeze(1)
-        nn.init.xavier_uniform_(embedding)
-        self.embedding = nn.Parameter(embedding)
-    
-        self.head = nn.Linear(self.config.d_model, self.config.n_outputs)
-
-        mask = torch.zeros((self.config.seq_len, self.config.seq_len)).bool()
-        for i in range(self.config.seq_len):
-            mask[i, :i+1] = True
-        self.temporal_mask = nn.Parameter(mask)
-        self.temporal_mask.requires_grad = False
-
-
-    def forward(self, obs, prev_actions):
+        y = self.att_layers[i](q, k, v)[0].reshape(batch_size, self.config.num_pi*self.config.hidden_dim)
         
-        enc = self.encoder(obs)
+        y = self.f_layers[i](y)
 
-        in_tokens = self.embedding.clone()
-        in_tokens[1:1+prev_actions.shape[0], :, :self.config.n_outputs] = prev_actions.unsqueeze(1)
+        return x + y
+    
 
-        pred = self.decoder(
-            tgt = in_tokens,
-            memory = enc,
-            tgt_mask = self.temporal_mask,
-        )
+    def forward(self, s, o):
 
-        logits = self.head(pred)
+        x = self.input_layer(s)
 
-        dist = torch.distributions.Categorical(logits=logits)
+        for i in range(self.config.num_layers):
+            x = self._layer(x, o, i)
+
+        l = self.output_layer(x)
+
+        dist = torch.distributions.Categorical(logits=l)
 
         return dist
-
-
-
