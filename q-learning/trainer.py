@@ -286,29 +286,29 @@ class Trainer:
             q_losses /= q_training_examples * epochs_per_iter
             q_vars /= q_training_examples * epochs_per_iter
 
-            # """-----  Main Training -----  """
+            """-----  Main Training -----  """
 
-            # # set model modes
-            # self.q_model.eval()
-            # self.pi_model.train()
-            # self.pi_model.set_mode(POLICY_MODES.MAIN_ONLY)
+            # set model modes
+            self.q_model.eval()
+            self.pi_model.train()
+            self.pi_model.set_mode(POLICY_MODES.MAIN_ONLY)
 
-            # # train for epochs
-            # for epoch in range(epochs_per_iter):
+            # train for epochs
+            for epoch in range(epochs_per_iter):
 
-            #     # sample vals from buffer
-            #     new_buffer.shuffle()
-            #     for i in range(0, len(new_buffer), batch_size):
-            #         batch = new_buffer[(i, batch_size)]
+                # sample vals from buffer
+                new_buffer.shuffle()
+                for i in range(0, len(new_buffer), batch_size):
+                    batch = new_buffer[(i, batch_size)]
 
-            #         # training step
-            #         pi_opt.zero_grad()
+                    # training step
+                    pi_opt.zero_grad()
 
-            #         loss = self._pi_loss(batch, False)
+                    loss = self._pi_loss(batch, False)
 
-            #         loss.backward()
+                    loss.backward()
 
-            #         pi_opt.step()
+                    pi_opt.step()
 
             """-----  Gene Training -----  """
 

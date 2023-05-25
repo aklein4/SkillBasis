@@ -27,11 +27,6 @@ class EpiPolicy(nn.Module):
         return self.net(s)
 
 
-class POLICY_MODES(Enum):
-    NORMAL = 0
-    MAIN_ONLY = 1
-    G_GRAD = 2
-
 class Policy(nn.Module):
     def __init__(self, config=configs.DefaultPolicy):
         super().__init__()
@@ -62,30 +57,10 @@ class Policy(nn.Module):
 
         self.output_layer = nn.Linear(config.hidden_dim, config.action_dim)
 
-        self._mode = POLICY_MODES.NORMAL
-
-    
-    def set_mode(self, mode):
-        self._mode = mode
-
-        if self._mode == POLICY_MODES.NORMAL or self._mode == POLICY_MODES.MAIN_ONLY:
-            self.input_layer.requires_grad_(True)
-            self.output_layer.requires_grad_(True)
-            self.main_layers.requires_grad_(True)
-        else:
-            self.input_layer.requires_grad_(False)
-            self.output_layer.requires_grad_(False)
-            self.main_layers.requires_grad_(False)
-
-    def get_mode(self):
-        return self._mode
-
 
     def _layer(self, x, o, i):
 
         main = self.main_layers[i](x)
-        if self._mode == POLICY_MODES.MAIN_ONLY:
-            return self.activation(main)
 
         g = None
         if isinstance(o, torch.Tensor) and o.numel() > 1:
