@@ -11,21 +11,21 @@ from utils import DEVICE
 OUTPUT_DIR = 'test'
 
 # training parameters
-NUM_ITERS = 500 # number of training iterations
-EPSILON_DECAY_ITERS = 400 # iterations for epsilon 1 -> 0 linearly
-ITERS_PER_TARGET = 16 # iterations between target network updates
+NUM_ITERS = 150 # number of training iterations
+EPSILON_DECAY_ITERS = 25 # iterations for epsilon 1 -> 0 linearly
+ITERS_PER_TARGET = 4 # iterations between target network updates
 
 EPISODES_PER_ITER = 1 # episodes sampled per iteration
 EPOCHS_PER_ITER = 1 # epochs trained per iteration
 
-VALS_PER_EPOCH = 512 # samples trained on every epoch
-BUFFER_SIZE = 2048 # maximium number of samples in buffer
+VALS_PER_EPOCH = 1024 # samples trained on every epoch
+BUFFER_SIZE = 1024 # maximium number of samples in buffer
 
 LR = 1e-4 # learning rate
 BATCH_SIZE = 8 # batch size
 
 DISCOUNT = 0.75 # discount factor
-SWITCH_PENALTY = 0.05 # penalty for switching options
+SWITCH_PENALTY = 0.00 # penalty for switching options
 ROLLING_BETA = 0.99 # parameter prob norm momentum
 REWARD_SMOOTHING = 0.98 # reward logging momentum
 

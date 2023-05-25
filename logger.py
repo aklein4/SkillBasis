@@ -21,6 +21,8 @@ class Logger:
         self.p_norms = []
         self.kls = []
         self.epsilons = []
+        self.switch_percs = []
+        self.skill_lens = []
 
         # save location
         self.log_loc = log_loc
@@ -31,7 +33,12 @@ class Logger:
         # initialize metric csv
         with open(os.path.join(self.log_loc, "metrics.csv"), 'w') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-            spamwriter.writerow(["epoch", "return", "q_loss", "q_var", "p_norm", "kl", "epsilon"])
+            spamwriter.writerow(["epoch", "epsilon", "return", "q_loss", "q_var", "p_norm", "kl", "switch_perc", "skill_len"])
+
+        # initialize gene csv
+        with open(os.path.join(self.log_loc, "genes.csv"), 'w') as csvfile:
+            spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
+            spamwriter.writerow(["gene_sequence"])
 
 
     def write(self):
@@ -40,7 +47,13 @@ class Logger:
         """
         with open(os.path.join(self.log_loc, "metrics.csv"), 'a') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-            spamwriter.writerow([len(self.returns)-1, self.returns[-1], self.q_losses[-1], self.q_vars[-1], self.p_norms[-1], self.kls[-1], self.epsilons[-1]])
+            spamwriter.writerow([len(self.returns)-1, self.epsilons[-1], self.returns[-1], self.q_losses[-1], self.q_vars[-1], self.p_norms[-1], self.kls[-1], self.switch_percs[-1], self.skill_lens[-1]])
+
+
+    def print_genes(self, genes):
+        with open(os.path.join(self.log_loc, "genes.csv"), 'a') as csvfile:
+            spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
+            spamwriter.writerow(genes)
 
 
     def plot(self):
@@ -49,7 +62,7 @@ class Logger:
         """
 
         # init figure
-        fig, ax = plt.subplots(3, 2)
+        fig, ax = plt.subplots(4, 2)
 
         # plot returns
         ax[0, 0].plot(self.returns)
@@ -80,15 +93,25 @@ class Logger:
         ax[2, 1].set_title("Inter-Gene Policy KL Divergences")
         ax[2, 1].set_ylabel('avg kl')
 
+        # plot switch_percs
+        ax[3, 0].plot(self.switch_percs)
+        ax[3, 0].set_title("Gene Switching Percentage")
+        ax[3, 0].set_ylabel('% of steps')
+
+        # plot skill_lens
+        ax[3, 1].plot(self.skill_lens)
+        ax[3, 1].set_title("Average Skill Length")
+        ax[3, 1].set_ylabel('avg length in steps')
+
         # save figure to file
         fig.suptitle("Training Progress (Smoothed)")
         fig.tight_layout()
-        fig.set_size_inches(12, 8)
+        fig.set_size_inches(11, 9)
         plt.savefig(os.path.join(self.log_loc, "progress.png"))
         plt.close(fig)
 
 
-    def log(self, r, q_loss, q_var, p_norm, kl, epsilon):
+    def log(self, r, q_loss, q_var, p_norm, kl, epsilon, switch_perc, skill_len, genes):
         """ Log new metrics.
 
         Args:
@@ -103,10 +126,13 @@ class Logger:
         self.p_norms.append(p_norm)
         self.kls.append(kl)
         self.epsilons.append(epsilon)
+        self.switch_percs.append(switch_perc)
+        self.skill_lens.append(skill_len)
 
         # log metrics
         self.write()
         self.plot()
+        self.print_genes(genes)
 
 
     def save(self, q_model, pi_model):

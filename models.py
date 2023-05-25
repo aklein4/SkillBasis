@@ -94,7 +94,7 @@ class Policy(nn.Module):
         else:
             g = self.g_layers[i][o](x)
 
-        return self.activation(main + g * 0.1)
+        return self.activation(main + g)
     
 
     def forward(self, s, o):
@@ -118,5 +118,8 @@ class Policy(nn.Module):
             outs.append(self.forward(s, o).probs)
         
         outs = torch.stack(outs)
+        avg = torch.mean(outs, dim=0, keepdim=True)
 
-        return -F.kl_div(outs, outs.mean(dim=0), reduction='sum').item()
+        kl = torch.sum(outs * torch.log(outs / avg), dim=-1)
+
+        return torch.sum(torch.mean(kl, dim=0)).item()

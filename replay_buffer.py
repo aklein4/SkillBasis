@@ -122,3 +122,18 @@ class ReplayBuffer:
             out.d[k] = torch.cat([out.d[k], other.d[k].clone()])
 
         return out
+    
+
+    def get_switch_perc(self):
+        return torch.sum((self.prev_genes != self.genes).bool()).item() / len(self)
+    
+    def get_avg_skill_len(self):
+        tot_skills = 1
+        curr = self.genes[0]
+
+        for i in range(len(self)):
+            if self.genes[i] != curr:
+                tot_skills += 1
+                curr = self.genes[i]
+        
+        return len(self) / tot_skills

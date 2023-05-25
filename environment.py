@@ -8,8 +8,8 @@ from utils import DEVICE, np2torch, torch2np
 from models import POLICY_MODES
 
 
-R_SCALE = 1/100
-
+R_SCALE = 1/10
+OBS_SCALE = 20
 
 class Environment():
     def __init__(self, q_model, pi_model, switch_penalty=0):
@@ -20,7 +20,7 @@ class Environment():
         self.switch_penalty = switch_penalty
 
         # create environment
-        self.env = gym.make("LunarLander-v2")
+        self.env = gym.make("CartPole-v1")
 
 
     def sample(self, n_episodes, epsilon=0.0):
@@ -56,7 +56,7 @@ class Environment():
         for _ in range(n_episodes):
 
             # reset environment
-            s = np2torch(self.env.reset()).float()
+            s = np2torch(self.env.reset()).float() * OBS_SCALE
             prev_g = None
 
             # accumulate rewards
@@ -68,9 +68,10 @@ class Environment():
                 Q = self.q_model(s)
                 if prev_g is None:
                     prev_g = torch.argmax(Q).item()
-                Q[prev_g] -= self.switch_penalty
+                Q[prev_g] += self.switch_penalty
                 
                 g = torch.argmax(Q).item()
+                opt_g = g
                 if torch.rand(1) < epsilon:
                     g = torch.randint(Q.shape[0], (1,)).item()
 
@@ -80,7 +81,7 @@ class Environment():
 
                 # step environment
                 new_s, r, done, info = self.env.step(a)
-                new_s = np2torch(new_s).float()
+                new_s = np2torch(new_s).float() * OBS_SCALE
 
                 # handle reward
                 r *= R_SCALE
@@ -101,7 +102,7 @@ class Environment():
 
                 # another step or end
                 s = new_s
-                prev_g = g
+                prev_g = opt_g
                 if done:
                     # only used for logging
                     returns.append(curr_return) 
