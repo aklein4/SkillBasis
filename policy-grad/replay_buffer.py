@@ -10,13 +10,10 @@ import random
 class ReplayBuffer:
     def __init__(self,
         states=None,
-        next_states=None,
         actions=None,
-        og_probs=None,
         genes=None,
-        prev_genes=None,
-        rewards=None,
-        dones=None,
+        og_probs=None,
+        returns=None,
         d=None
     ):
         assert states is not None or d is not None, "Must provide states or d"
@@ -28,19 +25,13 @@ class ReplayBuffer:
 
         # convert all to tensors
         self.d["states"] = torch.stack(states).to(DEVICE)
-        self.d["next_states"] = torch.stack(next_states).to(DEVICE)
 
         self.d["actions"] = torch.tensor(actions).to(DEVICE)
-        self.d["og_probs"] = torch.stack(og_probs).to(DEVICE)
-        
         self.d["genes"] = torch.tensor(genes).to(DEVICE)
-        self.d["prev_genes"] = torch.tensor(prev_genes).to(DEVICE)
 
-        self.d["rewards"] = torch.tensor(rewards).to(DEVICE).float()
-        self.d["dones"] = torch.tensor(dones, dtype=torch.bool).to(DEVICE)
+        self.d["og_probs"] = torch.tensor(og_probs).to(DEVICE)
 
-        # store which elements to remove (disignated in loss function)
-        self.d["importance"] = torch.zeros_like(self.dones).float().to(DEVICE)
+        self.d["returns"] = torch.tensor(returns).to(DEVICE).float()
 
         for k in self.d.keys():
             self.d[k].detach_()
@@ -93,40 +84,10 @@ class ReplayBuffer:
         return out
     
 
-    def reduce(self, new_size):
-
-        # remove elements to reach new_size
-        if new_size >= len(self):
-            return
-
-        keep = self.d["importance"].topk(new_size).indices
-
-        for k in self.d.keys():
-            self.d[k] = self.d[k][keep]
-
-
-    def __add__(self, other):
-        """ Concatenate two buffers into a new one
-
-        Args:
-            other (ReplayBuffer): Buffer to concatenate with
-
-        Returns:
-            ReplayBuffer: New replay buffer
-        """
-
-        # init new buffer
-        out = ReplayBuffer(d=self.d)
-
-        for k in out.d.keys():
-            out.d[k] = torch.cat([out.d[k], other.d[k].clone()])
-
-        return out
-    
-
     def get_switch_perc(self):
-        return torch.sum((self.prev_genes != self.genes).bool()).item() / len(self)
+        return torch.sum((self.genes[1:] != self.genes[:-1]).bool()).item() / len(self)
     
+
     def get_avg_skill_len(self):
         tot_skills = 1
         curr = self.genes[0]
