@@ -43,14 +43,14 @@ class Trainer:
     def _loss(self, batch):
 
         # get Q values for current state
-        V = self.baseline(batch.states)
+        V = self.baseline(batch.states).squeeze(-1)
         epi = self.epi_model(batch.states)
         pi = self.pi_model(batch.states)
 
-        baseline_loss = F.mse_loss(V, batch.returns.unsqueeze(-1))
+        baseline_loss = F.mse_loss(V, batch.returns)
         
         V = V.detach()
-        advantage = batch.returns.unsqueeze(-1) - V
+        advantage = batch.returns - V
 
         probs = torch.exp(pi.log_prob(batch.actions.unsqueeze(-1)))
         maxes, mins = torch.max(probs, dim=-1)[0], torch.min(probs, dim=-1)[0]
@@ -64,22 +64,25 @@ class Trainer:
             )
         )
 
-        probs = probs.detach()
-        full_probs = torch.sum(epi.probs * probs, dim=-1)
-        full_ratio = full_probs / batch.og_probs
-
-        epi_loss = -torch.mean(
+        max_inds, min_inds = torch.max(probs, dim=-1)[1], torch.min(probs, dim=-1)[1]
+        inds = torch.where(advantage >= 0, max_inds, min_inds).long()
+        
+        epi_loss = F.cross_entropy(epi, inds)
+        
+        true_pi = self.pi_model(batch.states, disable_g=True)
+        true_probs = torch.exp(true_pi.log_prob(batch.actions))
+        true_ratio = true_probs / batch.og_probs
+        true_loss = -torch.mean(
             torch.min(
-                full_ratio * advantage,
-                torch.clamp(full_ratio, 1 - PPO_CLIP, 1 + PPO_CLIP) * advantage
+                true_ratio * advantage,
+                torch.clamp(true_ratio, 1 - PPO_CLIP, 1 + PPO_CLIP) * advantage
             )
         )
+        
+        avg_p = true_pi.probs.unsqueeze(-2).detach()
+        kl_raw = torch.mean(torch.sum(pi.probs * torch.log(pi.probs / avg_p), dim=-1), dim=-2)
 
-        avg_p = torch.mean(pi.probs, dim=-2, keepdim=True)
-        kl = torch.mean(torch.sum(pi.probs * torch.log(pi.probs / avg_p), dim=-1), dim=-2)
-        kl = torch.sum(kl).item()
-
-        return baseline_loss + pi_loss + epi_loss, kl
+        return baseline_loss + pi_loss + epi_loss + true_loss + torch.mean(kl_raw), torch.sum(kl_raw).item()
 
 
     def train(self,

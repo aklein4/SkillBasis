@@ -10,6 +10,7 @@ from utils import DEVICE, np2torch, torch2np
 R_SCALE = 1/100
 OBS_SCALE = 1
 
+MAX_LEN = 1000
 
 class Environment():
     def __init__(self, epi_model, pi_model, discount=None):
@@ -43,28 +44,23 @@ class Environment():
         for _ in range(n_episodes):
 
             # reset environment
-            s = np2torch(self.env.reset()).float() * OBS_SCALE
+            s = np2torch(self.env.reset()[0]).float() * OBS_SCALE
 
             rewards = []
 
             while True:
 
                 # call models
-                epi = self.epi_model(s)
-                g = epi.sample().item()
+                g = torch.argmax(self.epi_model(s)).item()
 
                 pi = self.pi_model(s, g)
                 a = pi.sample()
-                
-                og_prob = torch.sum(
-                    self.pi_model(s.unsqueeze(0)).log_prob(a.unsqueeze(0).unsqueeze(0)).squeeze(0) *
-                    epi.probs,
-                ).item()
+                og_prob = pi.probs[a].item()
 
                 a = a.item()
 
                 # step environment
-                new_s, r, done, info = self.env.step(a)
+                new_s, r, done, info, _ = self.env.step(a)
                 new_s = np2torch(new_s).float() * OBS_SCALE
                 r *= R_SCALE
 
@@ -77,7 +73,7 @@ class Environment():
 
                 # another step or end
                 s = new_s
-                if done:
+                if done or len(rewards) >= MAX_LEN:
 
                     total_returns.append(sum(rewards))
                     for i in range(2, len(rewards)+1):

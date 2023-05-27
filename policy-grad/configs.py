@@ -16,7 +16,7 @@ DefaultBaseline = Config(
 
 DefaultEpiPolicy = Config(
     state_dim=8,
-    num_g=1,
+    num_g=2,
 
     hidden_dim=32,
     num_layers=2,
@@ -28,8 +28,8 @@ DefaultPolicy = Config(
     state_dim=8,
     action_dim=4,
 
-    num_g=1,
-    rank_dim=2,
+    num_g=2,
+    rank_dim=4,
 
     hidden_dim=32,
     num_layers=2,

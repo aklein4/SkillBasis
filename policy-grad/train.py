@@ -11,16 +11,16 @@ from utils import DEVICE
 OUTPUT_DIR = 'test'
 
 # training parameters
-NUM_ITERS = 8*1024 # number of training iterations
+NUM_ITERS = 2048 # number of training iterations
 
 EPISODES_PER_ITER = 1 # episodes sampled per iteration
 EPOCHS_PER_ITER = 1 # epochs trained per iteration
 
-LR = 1e-3 # learning rate
-BATCH_SIZE = 8 # batch size
+LR = 1e-4 # learning rate
+BATCH_SIZE = 64 # batch size
 
-DISCOUNT = 0.8 # discount factor
-REWARD_SMOOTHING = 0 # reward logging momentum
+DISCOUNT = 0.65 # discount factor
+REWARD_SMOOTHING = 0.98 # reward logging momentum
 
 
 def main():

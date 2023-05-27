@@ -16,8 +16,8 @@ def torch2np(x):
 
 
 # nvidia-ml-py3
-import nvidia_smi
 try:
+    import nvidia_smi
     nvidia_smi.nvmlInit()
 except:
     pass

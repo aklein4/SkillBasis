@@ -42,8 +42,7 @@ class EpiPolicy(nn.Module):
 
     
     def forward(self, s):
-        dist = torch.distributions.Categorical(logits=self.net(s))
-        return dist
+        return self.net(s)
 
 
 class Policy(nn.Module):
@@ -77,10 +76,11 @@ class Policy(nn.Module):
         self.output_layer = nn.Linear(config.hidden_dim, config.action_dim)
 
 
-    def _layer(self, x, g, i):
-        assert x.dim() > 2 or g is not None
+    def _layer(self, x, g, i, disable_g=False):
 
         h = self.main_layers[i](x)
+        if disable_g:
+            return self.activation(h)
 
         if g is None:
             for c in range(self.config.num_g):
@@ -91,17 +91,25 @@ class Policy(nn.Module):
         return self.activation(h)
     
 
-    def forward(self, s, g=None):
-        assert not (g is None and s.dim() == 1)
+    def forward(self, s, g=None, disable_g=False):
 
-        if g is None:
+        if g is None and not disable_g:
             s = s.unsqueeze(-2)
             s = s.expand(s.shape[0], self.config.num_g, s.shape[-1])
+
+        if disable_g:
+            self.input_layer.requires_grad_(True)
+            self.main_layers.requires_grad_(True)
+            self.output_layer.requires_grad_(True)
+        else:
+            self.input_layer.requires_grad_(False)
+            self.main_layers.requires_grad_(False)
+            self.output_layer.requires_grad_(False)
 
         x = self.input_layer(s)
 
         for i in range(self.config.num_layers):
-            x = self._layer(x, g, i)
+            x = self._layer(x, g, i, disable_g)
 
         l = self.output_layer(x)
 
