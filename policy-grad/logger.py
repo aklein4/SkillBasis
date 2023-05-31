@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 class Logger:
-    def __init__(self, log_loc):
+    def __init__(self, log_loc, save_every):
         """ Logger to save training metrics.
 
         Args:
@@ -22,6 +22,7 @@ class Logger:
 
         # save location
         self.log_loc = log_loc
+        self.save_every = save_every
 
         # make folder
         os.makedirs(self.log_loc, exist_ok=True)

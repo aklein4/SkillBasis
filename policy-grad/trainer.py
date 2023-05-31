@@ -64,10 +64,15 @@ class Trainer:
             )
         )
 
-        max_inds, min_inds = torch.max(probs, dim=-1)[1], torch.min(probs, dim=-1)[1]
-        inds = torch.where(advantage >= 0, max_inds, min_inds).long()
-        
-        epi_loss = F.cross_entropy(epi, inds)
+        full_probs = torch.sum(epi.probs * probs.detach(), dim=-1)
+        full_ratio = full_probs / batch.og_probs
+
+        epi_loss = -torch.mean(
+            torch.min(
+                full_ratio * advantage,
+                torch.clamp(full_ratio, 1 - PPO_CLIP, 1 + PPO_CLIP) * advantage
+            )
+        )
         
         true_pi = self.pi_model(batch.states, disable_g=True)
         true_probs = torch.exp(true_pi.log_prob(batch.actions))
@@ -191,6 +196,9 @@ class Trainer:
                 'skill_len': round(rolling_skill_len, 3)
             })
         
+            if self.logger is not None and it % self.logger.save_every == 0:
+                self.logger.save(self.epi_model, self.pi_model)
+        
         # save models
         if self.logger is not None:
-            self.logger.save(self.baseline, self.pi_model)
+            self.logger.save(self.epi_model, self.pi_model)

@@ -42,7 +42,8 @@ class EpiPolicy(nn.Module):
 
     
     def forward(self, s):
-        return self.net(s)
+        dist = torch.distributions.Categorical(logits=self.net(s))
+        return dist
 
 
 class Policy(nn.Module):
@@ -84,9 +85,9 @@ class Policy(nn.Module):
 
         if g is None:
             for c in range(self.config.num_g):
-                h[:, c] += self.g_layers[i][c](x[:, c])
+                h[:, c] += self.g_layers[i][c](x[:, c]) * 0.1
         else:
-            h += self.g_layers[i][g](x)
+            h += self.g_layers[i][g](x) * 0.1
 
         return self.activation(h)
     

@@ -5,7 +5,7 @@ import gym
 
 from replay_buffer import ReplayBuffer
 from utils import DEVICE, np2torch, torch2np
-
+import matplotlib
 
 R_SCALE = 1/100
 OBS_SCALE = 1
@@ -21,10 +21,11 @@ class Environment():
         self.discount = discount
 
         # create environment
-        self.env = gym.make("LunarLander-v2")
+        self.env = None
 
 
     def sample(self, n_episodes):
+        env = gym.make("LunarLander-v2", render_mode=None)
 
         # set models modes
         self.epi_model.eval()
@@ -44,23 +45,28 @@ class Environment():
         for _ in range(n_episodes):
 
             # reset environment
-            s = np2torch(self.env.reset()[0]).float() * OBS_SCALE
+            s = np2torch(env.reset()[0]).float() * OBS_SCALE
 
             rewards = []
 
             while True:
 
                 # call models
-                g = torch.argmax(self.epi_model(s)).item()
+                epi = self.epi_model(s)
+                g = epi.sample().item()
 
                 pi = self.pi_model(s, g)
                 a = pi.sample()
-                og_prob = pi.probs[a].item()
+                
+                og_prob = torch.sum(
+                    torch.exp(self.pi_model(s.unsqueeze(0)).log_prob(a.unsqueeze(0).unsqueeze(0)).squeeze(0)) *
+                    epi.probs,
+                ).item()
 
                 a = a.item()
 
                 # step environment
-                new_s, r, done, info, _ = self.env.step(a)
+                new_s, r, done, info, _ = env.step(a)
                 new_s = np2torch(new_s).float() * OBS_SCALE
                 r *= R_SCALE
 

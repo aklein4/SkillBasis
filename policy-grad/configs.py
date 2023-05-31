@@ -8,7 +8,7 @@ class Config(dict):
 DefaultBaseline = Config(
     state_dim=8,
 
-    hidden_dim=32,
+    hidden_dim=16,
     num_layers=2,
     dropout=0.1
 )
@@ -18,7 +18,7 @@ DefaultEpiPolicy = Config(
     state_dim=8,
     num_g=2,
 
-    hidden_dim=32,
+    hidden_dim=16,
     num_layers=2,
     dropout=0.1
 )

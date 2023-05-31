@@ -9,23 +9,24 @@ from utils import DEVICE
 
 # result directory
 OUTPUT_DIR = 'test'
+SAVE_EVERY = 16
 
 # training parameters
-NUM_ITERS = 2048 # number of training iterations
+NUM_ITERS = 256 # number of training iterations
 
-EPISODES_PER_ITER = 1 # episodes sampled per iteration
+EPISODES_PER_ITER = 8 # episodes sampled per iteration
 EPOCHS_PER_ITER = 1 # epochs trained per iteration
 
 LR = 1e-4 # learning rate
 BATCH_SIZE = 64 # batch size
 
-DISCOUNT = 0.65 # discount factor
-REWARD_SMOOTHING = 0.98 # reward logging momentum
+DISCOUNT = 0.9 # discount factor
+REWARD_SMOOTHING = 0.9 # reward logging momentum
 
 
 def main():
 
-    logger = Logger(OUTPUT_DIR)
+    logger = Logger(OUTPUT_DIR, SAVE_EVERY)
 
     # fresh models
     baseline = Baseline()
