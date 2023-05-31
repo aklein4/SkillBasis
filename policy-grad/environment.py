@@ -5,9 +5,9 @@ import gym
 
 from replay_buffer import ReplayBuffer
 from utils import DEVICE, np2torch, torch2np
-import matplotlib
+from pacman import Pacman
 
-R_SCALE = 1/100
+R_SCALE = 1
 OBS_SCALE = 1
 
 MAX_LEN = 1000
@@ -21,11 +21,10 @@ class Environment():
         self.discount = discount
 
         # create environment
-        self.env = None
+        self.env = Pacman()
 
 
     def sample(self, n_episodes):
-        env = gym.make("LunarLander-v2", render_mode=None)
 
         # set models modes
         self.epi_model.eval()
@@ -45,7 +44,7 @@ class Environment():
         for _ in range(n_episodes):
 
             # reset environment
-            s = np2torch(env.reset()[0]).float() * OBS_SCALE
+            s = np2torch(self.env.reset()[0]).float() * OBS_SCALE
 
             rewards = []
 
@@ -66,8 +65,8 @@ class Environment():
                 a = a.item()
 
                 # step environment
-                new_s, r, done, info, _ = env.step(a)
-                new_s = np2torch(new_s).float() * OBS_SCALE
+                new_s, r, done, info, _ = self.env.step(a)
+                new_s = np2torch(new_s).float().reshape(-1) * OBS_SCALE
                 r *= R_SCALE
 
                 # store transition                    
