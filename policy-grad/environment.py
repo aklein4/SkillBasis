@@ -44,7 +44,7 @@ class Environment():
         for _ in range(n_episodes):
 
             # reset environment
-            s = np2torch(self.env.reset()[0]).float() * OBS_SCALE
+            s = np2torch(self.env.reset()[0]).float().reshape(-1) * OBS_SCALE
 
             rewards = []
 
