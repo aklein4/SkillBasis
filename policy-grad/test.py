@@ -14,11 +14,11 @@ LOAD_LOC = "./test"
 
 R_SCALE = 1/100
 OBS_SCALE = 1
-MAX_LEN = 1000
+MAX_LEN = 250
 
 
 def test(epi_model, pi_model):
-    env = gym.make("LunarLander-v2", render_mode='human')
+    env = gym.make("LunarLander-v2")
 
     # set models modes
     epi_model.eval()
@@ -28,7 +28,7 @@ def test(epi_model, pi_model):
     probs = []
 
     # reset environment
-    s = np2torch(env.reset()[0]).float() * OBS_SCALE
+    s = np2torch(env.reset()).float() * OBS_SCALE
 
     while True:
 
@@ -41,7 +41,7 @@ def test(epi_model, pi_model):
         a = pi.sample().item()
 
         # step environment
-        new_s, r, done, info, _ = env.step(a)
+        new_s, r, done, info = env.step(a)
         env.render()
         new_s = np2torch(new_s).float() * OBS_SCALE
 

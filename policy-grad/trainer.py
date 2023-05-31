@@ -9,7 +9,7 @@ import math
 from utils import DEVICE, np2torch, torch2np
 
 
-PPO_CLIP = 0.2
+PPO_CLIP = 0.1
 
 
 class Trainer:
@@ -44,50 +44,59 @@ class Trainer:
 
         # get Q values for current state
         V = self.baseline(batch.states).squeeze(-1)
-        epi = self.epi_model(batch.states)
-        pi = self.pi_model(batch.states)
-
         baseline_loss = F.mse_loss(V, batch.returns)
         
-        V = V.detach()
-        advantage = batch.returns - V
+        # handle pi_g
+        pi_G = self.pi_model(batch.states)
 
-        probs = torch.exp(pi.log_prob(batch.actions.unsqueeze(-1)))
-        maxes, mins = torch.max(probs, dim=-1)[0], torch.min(probs, dim=-1)[0]
-        adj_probs = torch.where(advantage >= 0, maxes, mins)
-        ratio = adj_probs / batch.og_probs
+        p_G = torch.exp(pi_G.log_prob(batch.actions.unsqueeze(-1)))
+        max_g, min_g = torch.max(p_G, dim=-1)[0], torch.min(p_G, dim=-1)[0]
+        p_best = torch.where(batch.advantages >= 0, max_g, min_g)
+        ratio_best = p_best / batch.og_probs
 
-        pi_loss = -torch.mean(
+        G_loss = -torch.mean(
             torch.min(
-                ratio * advantage,
-                torch.clamp(ratio, 1 - PPO_CLIP, 1 + PPO_CLIP) * advantage
+                ratio_best * batch.advantages,
+                torch.clamp(ratio_best, 1 - PPO_CLIP, 1 + PPO_CLIP) * batch.advantages
             )
         )
 
-        full_probs = torch.sum(epi.probs * probs.detach(), dim=-1)
-        full_ratio = full_probs / batch.og_probs
+        # handle epi
+        epi = self.epi_model(batch.states)
+
+        p = torch.sum(epi.probs * p_G.detach(), dim=-1)
+        ratio = p / batch.og_probs
 
         epi_loss = -torch.mean(
             torch.min(
-                full_ratio * advantage,
-                torch.clamp(full_ratio, 1 - PPO_CLIP, 1 + PPO_CLIP) * advantage
+                ratio * batch.advantages,
+                torch.clamp(ratio, 1 - PPO_CLIP, 1 + PPO_CLIP) * batch.advantages
             )
         )
         
-        true_pi = self.pi_model(batch.states, disable_g=True)
-        true_probs = torch.exp(true_pi.log_prob(batch.actions))
-        true_ratio = true_probs / batch.og_probs
-        true_loss = -torch.mean(
-            torch.min(
-                true_ratio * advantage,
-                torch.clamp(true_ratio, 1 - PPO_CLIP, 1 + PPO_CLIP) * advantage
-            )
-        )
-        
-        avg_p = true_pi.probs.unsqueeze(-2).detach()
-        kl_raw = torch.mean(torch.sum(pi.probs * torch.log(pi.probs / avg_p), dim=-1), dim=-2)
+        # handle prime pi
+        pi_prime = self.pi_model(batch.states, disable_g=True)
 
-        return baseline_loss + pi_loss + epi_loss + true_loss + torch.mean(kl_raw), torch.sum(kl_raw).item()
+        p_prime = torch.exp(pi_prime.log_prob(batch.actions))
+        ratio_prime = p_prime / batch.og_probs
+        
+        prime_loss = -torch.mean(
+            torch.min(
+                ratio_prime * batch.advantages,
+                torch.clamp(ratio_prime, 1 - PPO_CLIP, 1 + PPO_CLIP) * batch.advantages
+            )
+        )
+        
+        # get KL penalty
+        p_targ = pi_prime.probs.unsqueeze(-2).detach()
+        kl_raw = torch.mean(torch.sum(pi_G.probs * torch.log(pi_G.probs / p_targ), dim=-1), dim=-2)
+        kl_loss  = 10*torch.mean(kl_raw)
+        kl_log = torch.sum(kl_raw).item()
+
+        return (
+            baseline_loss + G_loss + epi_loss + prime_loss + kl_loss,
+            kl_log
+        )
 
 
     def train(self,
@@ -137,8 +146,7 @@ class Trainer:
         pbar = tqdm(range(num_iters), desc='Training', leave=True)
         for it in pbar:
 
-            """ -----  Buffer Sampling ----- """
-            
+            # get samples
             buffer, returns = self.env.sample(episodes_per_iter)
 
             # handle the rolling metrics
@@ -146,13 +154,24 @@ class Trainer:
             rolling_switch_perc = self._smooth(rolling_switch_perc, buffer.get_switch_perc())
             rolling_skill_len = self._smooth(rolling_skill_len, buffer.get_avg_skill_len())
 
+            self.baseline.eval()
+
+            # calculate the adjusted advantages
+            for i in range(0, len(buffer), batch_size):
+                batch = buffer[(i, batch_size)]
+                V = self.baseline(batch.states).squeeze(-1)
+                batch.advantages[:] = batch.returns - V
+            mu_A = torch.mean(buffer.advantages)
+            std_A = torch.std(buffer.advantages)
+            buffer.advantages[:] = (buffer.advantages - mu_A) / std_A
+            buffer.advantages.detach_()
+
             # set model modes
             self.baseline.train()
             self.pi_model.train()
             self.epi_model.train()
 
             accum_kl = 0
-
             # train for epochs
             for epoch in range(epochs_per_iter):
 

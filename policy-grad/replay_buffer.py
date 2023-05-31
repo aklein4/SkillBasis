@@ -33,6 +33,8 @@ class ReplayBuffer:
 
         self.d["returns"] = torch.tensor(returns).to(DEVICE).float()
 
+        self.d["advantages"] = torch.zeros_like(self.returns)
+
         for k in self.d.keys():
             self.d[k].detach_()
 

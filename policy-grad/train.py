@@ -17,11 +17,11 @@ NUM_ITERS = 256 # number of training iterations
 EPISODES_PER_ITER = 8 # episodes sampled per iteration
 EPOCHS_PER_ITER = 1 # epochs trained per iteration
 
-LR = 1e-5 # learning rate
+LR = 1e-3 # learning rate
 BATCH_SIZE = 16 # batch size
 
-DISCOUNT = 0.5 # discount factor
-REWARD_SMOOTHING = 0.9 # reward logging momentum
+DISCOUNT = 0.9 # discount factor
+REWARD_SMOOTHING = 0 # reward logging momentum
 
 
 def main():
