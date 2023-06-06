@@ -14,10 +14,10 @@ _ACTIONS = np.array([
     [-1, 0]
 ])
 
-STATIC = True
+STATIC = False
 
-FOOD_REWARD = 1
-TIME_PENALTY = -0.25
+FOOD_REWARD = 10
+BAD_PENALTY = -1
 
 
 class GridWorld:
@@ -49,12 +49,12 @@ class GridWorld:
         # character starts at 0, 0
         self.char_ind = np.array([0, 0])
         avail_set.remove((0, 0))
-        self.board[0, 0] = 1
+        self.board[0, 0] = 2
 
         # add the food
         if STATIC:
             np.random.seed(0)
-        for i in range(2, self.num_modes+2):
+        for i in range(3, self.num_modes+3):
             for _ in range(self.num_food):
                 if len(avail_set) == 0:
                     raise RuntimeError("Not enough space for food")
@@ -74,20 +74,29 @@ class GridWorld:
         assert action >= 0
         assert action < 4
 
-        reward = TIME_PENALTY
+        reward = 0
 
         # take action
         if self._actionOkay(_ACTIONS[action]):
             new_ind = self.char_ind + _ACTIONS[action]
             
-            if self.board[new_ind[0], new_ind[1]]-2 in self.target_food:
+            if self.board[new_ind[0], new_ind[1]]-3 in self.target_food:
                 self.food_left -= 1
                 reward = FOOD_REWARD
 
-            self.board[self.char_ind[0], self.char_ind[1]] = 0
-            self.board[new_ind[0], new_ind[1]] = 1
+            elif self.board[new_ind[0], new_ind[1]] > 1:
+                reward = -FOOD_REWARD
+            
+            elif self.board[new_ind[0], new_ind[1]] == 1:
+                reward = BAD_PENALTY
+
+            self.board[self.char_ind[0], self.char_ind[1]] = 1
+            self.board[new_ind[0], new_ind[1]] = 2
 
             self.char_ind = new_ind
+
+        else:
+            reward = BAD_PENALTY
 
         # check done
         self.t += 1

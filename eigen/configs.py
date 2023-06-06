@@ -7,7 +7,7 @@ class Config(dict):
 
 DefaultBaseline = Config(
 
-    n_tokens = 5,
+    n_tokens = 6,
     state_size = 100,
     state_dim = 2,
 
@@ -26,7 +26,7 @@ DefaultBaseline = Config(
 
 DefaultPolicy = Config(
 
-    n_tokens = 5,
+    n_tokens = 6,
     state_size = 100,
     state_dim = 2,
 

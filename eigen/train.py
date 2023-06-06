@@ -21,10 +21,10 @@ EPOCHS_PER_ITER = 1 # epochs trained per iteration
 LR = 5e-4 # learning rate
 BATCH_SIZE = 16 # batch size
 
-DISCOUNT = 0.75 # discount factor
+DISCOUNT = 0.5 # discount factor
 REWARD_SMOOTHING = 0.75 # reward logging momentum
 
-MODES = [0]
+MODES = [0, 1]
 
 GRID_SIZE = 7
 NUM_FOOD_TYPES = 3
