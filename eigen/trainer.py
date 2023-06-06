@@ -9,7 +9,7 @@ import math
 from utils import DEVICE, np2torch, torch2np
 
 
-PPO_CLIP = 0.1
+PPO_CLIP = 0.2
 
 
 class Trainer:

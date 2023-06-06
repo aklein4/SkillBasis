@@ -66,8 +66,11 @@ class GridWorld:
         return self.getState()
     
 
-    def _actionOkay(self, action):
-        return not (self.char_ind + action < 0).any() and not (self.char_ind + action >= self.board_size).any()
+    def _getNewPos(self, action):
+        uncut = self.char_ind + _ACTIONS[action]
+        uncut += self.board_size
+        
+        return uncut % self.board_size
 
 
     def step(self, action):
@@ -77,26 +80,22 @@ class GridWorld:
         reward = 0
 
         # take action
-        if self._actionOkay(_ACTIONS[action]):
-            new_ind = self.char_ind + _ACTIONS[action]
-            
-            if self.board[new_ind[0], new_ind[1]]-3 in self.target_food:
-                self.food_left -= 1
-                reward = FOOD_REWARD
+        new_ind = self._getNewPos(action)
+        
+        if self.board[new_ind[0], new_ind[1]]-3 in self.target_food:
+            self.food_left -= 1
+            reward = FOOD_REWARD
 
-            elif self.board[new_ind[0], new_ind[1]] > 1:
-                reward = -FOOD_REWARD
-            
-            elif self.board[new_ind[0], new_ind[1]] == 1:
-                reward = BAD_PENALTY
-
-            self.board[self.char_ind[0], self.char_ind[1]] = 1
-            self.board[new_ind[0], new_ind[1]] = 2
-
-            self.char_ind = new_ind
-
-        else:
+        elif self.board[new_ind[0], new_ind[1]] > 1:
+            reward = -FOOD_REWARD
+        
+        elif self.board[new_ind[0], new_ind[1]] == 1:
             reward = BAD_PENALTY
+
+        self.board[self.char_ind[0], self.char_ind[1]] = 1
+        self.board[new_ind[0], new_ind[1]] = 2
+
+        self.char_ind = new_ind
 
         # check done
         self.t += 1

@@ -11,11 +11,11 @@ DefaultBaseline = Config(
     state_size = 100,
     state_dim = 2,
 
-    hidden_dim = 8,
-    n_layers = 2,
+    hidden_dim = 64,
+    n_layers = 3,
 
-    n_heads = 2,
-    rank = 4,
+    n_heads = 4,
+    rank = 64,
 
     modes = 2,
 
@@ -32,11 +32,11 @@ DefaultPolicy = Config(
 
     action_size = 4,
 
-    hidden_dim = 8,
-    n_layers = 2,
+    hidden_dim = 64,
+    n_layers = 3,
 
-    n_heads = 2,
-    rank = 4,
+    n_heads = 4,
+    rank = 64,
 
     modes = 2,
 

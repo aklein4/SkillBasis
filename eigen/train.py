@@ -9,27 +9,27 @@ from gridworld import GridWorld
 import utils
 
 # result directory
-OUTPUT_DIR = 'test'
+OUTPUT_DIR = 'single'
 SAVE_EVERY = 16
 
 # training parameters
-NUM_ITERS = 256 # number of training iterations
+NUM_ITERS = 2048 # number of training iterations
 
 EPISODES_PER_ITER = 8 # episodes sampled per iteration
 EPOCHS_PER_ITER = 1 # epochs trained per iteration
 
-LR = 5e-4 # learning rate
-BATCH_SIZE = 16 # batch size
+LR = 1e-5 # learning rate
+BATCH_SIZE = 32 # batch size
 
 DISCOUNT = 0.5 # discount factor
-REWARD_SMOOTHING = 0.75 # reward logging momentum
+REWARD_SMOOTHING = 0.95 # reward logging momentum
 
-MODES = [0, 1]
+MODES = [0]
 
-GRID_SIZE = 7
+GRID_SIZE = 4
 NUM_FOOD_TYPES = 3
-NUM_FOOD = 5
-TIME_LIMIT = 100
+NUM_FOOD = 2
+TIME_LIMIT = 64
 
 def main():
 

@@ -15,6 +15,7 @@ class Baseline(nn.Module):
         self.embeddings = nn.Embedding(config.n_tokens, config.hidden_dim)
 
         self.positional_embedding = nn.Parameter(get2dEmbedding(config.state_size, config.hidden_dim).unsqueeze(0))
+        self.positional_embedding.requires_grad = False
 
         self.cls = nn.Parameter(torch.randn(1, 1, config.hidden_dim))
 
@@ -66,6 +67,7 @@ class Policy(nn.Module):
         self.embeddings = nn.Embedding(config.n_tokens, config.hidden_dim)
 
         self.positional_embedding = nn.Parameter(get2dEmbedding(config.state_size, config.hidden_dim).unsqueeze(0))
+        self.positional_embedding.requires_grad = False
 
         self.cls = nn.Parameter(torch.randn(1, 1, config.hidden_dim))
 

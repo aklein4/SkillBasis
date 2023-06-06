@@ -93,7 +93,7 @@ class EigenAttention(nn.Module):
         v = self.V(x, g).reshape(*x.shape[:-1], self.n_heads, self.dim // self.n_heads)
 
         # attend
-        hidden = F.scaled_dot_product_attention(q, k, v).reshape(x.shape)
+        hidden = F._scaled_dot_product_attention(q, k, v)[0].reshape(x.shape)
 
         # compute output
         y = self.out(hidden, g)
@@ -254,7 +254,7 @@ def get2dEmbedding(size, h):
     len = int(size ** (1/2))
     chunk = h // 2
 
-    coef = torch.pi / len
+    coef = 2 * torch.pi / len
 
     pos = torch.zeros((len, len, h))
 
