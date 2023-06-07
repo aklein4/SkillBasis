@@ -9,22 +9,22 @@ from drone import Drone
 import utils
 
 # result directory
-OUTPUT_DIR = 'test'
-SAVE_EVERY = 16
+OUTPUT_DIR = 'run2'
+SAVE_EVERY = 32
 
 # training parameters
-NUM_ITERS = 4028 # number of training iterations
+NUM_ITERS = 2048*2 # number of training iterations
 UPDATE_EVERY = 8
 
-EPISODES_PER_ITER = 8 # episodes sampled per iteration
+EPISODES_PER_ITER = 2 # episodes sampled per iteration
 EPOCHS_PER_ITER = 1 # epochs trained per iteration
 
 LR = 1e-4 # learning rate
-BATCH_SIZE = 8 # batch size
+BATCH_SIZE = 16 # batch size
 
 DISCOUNT = 0.75
 
-REWARD_SMOOTHING = 0.5 # reward logging momentum
+REWARD_SMOOTHING = 0.9 # reward logging momentum
 
 SKILL_SIGMA = 1
 

@@ -63,8 +63,8 @@ class Environment():
 
                     pi = self.pi_model(s, z)
                     a = pi.sample()
-                    if not self.pi_model.config.discrete:
-                        a = torch.clamp(a, self.pi_model.config.action_min, self.pi_model.config.action_max)
+                    # if not self.pi_model.config.discrete:
+                    #     a = torch.clamp(a, self.pi_model.config.action_min, self.pi_model.config.action_max)
 
                     if greedy:
                         if self.pi_model.config.discrete:
@@ -89,6 +89,8 @@ class Environment():
                         actions.append(a)
                         og_probs.append(og_prob)
                         skills.append(z)
+                        
+                        s = new_s
 
         return ReplayBuffer(
             seed_states,

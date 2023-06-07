@@ -12,7 +12,7 @@ import os
 import matplotlib.pyplot as plt
 
 
-LOAD_DIR = 'test'
+LOAD_DIR = 'run2'
 OUT_DIR = "figs"
 
 def main():
@@ -29,19 +29,19 @@ def main():
     grid = torch.zeros(20, 20, 2)
     for i in range(-10, 10):
         for j in range(-10, 10):
-            enc = encoder_model(torch.tensor([i, j]).float()).unsqueeze(-1)
+            enc = encoder_model(torch.tensor([i, j]).float().to(utils.DEVICE)).unsqueeze(-1)
             vals = (basis_model() @ enc).squeeze()
 
             grid[i+10, j+10] = vals
 
-    grid += 1
-    grid /= 2
-    grid = torch.clamp(grid, 0, 1)
+    for i in [0, 1]:
+        grid[:, :, i] -= torch.min(grid[:, :, i])
+        grid[:, :, i] /= torch.max(grid[:, :, i])
     
     grid = torch.cat([grid[:, :, :1], grid], dim=-1)
 
     plt.imshow(utils.torch2np(grid))
-    plt.show()
+    plt.(save("vis.png"))
 
     pi_model = Policy()
     pi_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "pi_model.pt"), map_location='cpu'))

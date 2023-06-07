@@ -51,3 +51,13 @@ DefaultPolicy = Config(
 
 )
 DefaultPolicy.inherit(DefaultConfig)
+
+
+DefaultManager = Config(
+)
+DefaultManager.inherit(DefaultConfig)
+
+
+DefaultManagerBaseline = Config(
+)
+DefaultManagerBaseline.inherit(DefaultConfig)

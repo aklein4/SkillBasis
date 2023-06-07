@@ -5,13 +5,16 @@ import tkinter as tk
 import time
 
 
-RANDOM_RESET = True
+RANDOM_RESET = False
 
 CANVAS_SIZE = 500
 
 DELTA_T = 0.1
 FORCE = 5
-DRAG = 0.25
+DRAG = 0.01
+
+MAX_ROT = np.pi / 4
+MAX_SPEED = 5.0
 
 BOUND = 20.0
 
@@ -29,8 +32,10 @@ DISCRETE_ACTIONS = np.array([
 
 
 class Drone:
-    def __init__(self, discrete=False, render=False, max_t = 10):
+    def __init__(self, discrete=False, render=False, max_t = 10, boxes=None, target=np.array([19, 19])):
         self.discrete = discrete
+        self.boxes = boxes
+        self.target = target
 
         self.t = None
         self.max_t = max_t
@@ -48,6 +53,7 @@ class Drone:
 
         self.rendering = render
         if self.rendering:
+            print("Rendering...")
             self.root = tk.Tk()
             self.canvas = tk.Canvas(self.root, width=CANVAS_SIZE, height=CANVAS_SIZE)
             self.canvas.pack()
@@ -88,12 +94,12 @@ class Drone:
 
         if RANDOM_RESET:
             self.pos = np.random.uniform(-BOUND, BOUND, 2)
-            self.speed = np.random.normal(0, FORCE/2, 1)
+            self.speed = np.zeros(1)
             self.ang = np.random.uniform(-np.pi, np.pi, 1)
-            self.ang_vel = np.random.normal(0, np.pi/4, 1)
+            self.ang_vel = np.zeros(1)
 
         else:
-            self.pos = np.zeros(2)
+            self.pos = np.array([0, 0])
             self.speed = np.zeros(1)
             self.ang = np.zeros(1)
             self.ang_vel = np.zeros(1)
@@ -106,8 +112,25 @@ class Drone:
         state = np.concatenate([
             self.pos, dir, self.speed, self.ang_vel
         ], axis=0)
-
+    
         return state
+    
+    
+    def checkCollision(self, p):
+        if p[0] < -BOUND or p[0] > BOUND or p[1] < -BOUND or p[1] > BOUND:
+            return True
+        
+        if self.boxes is None:
+            return False   
+        
+        x, y = p[0], p[1]
+        
+        for i in self.boxes.shape[0]:
+            b = self.boxes[i]
+            if x >= b[0] and x <= b[1] and y >= b[2] and y <= b[3]:
+                return True
+            
+        return False
     
 
     def step(self, action):
@@ -122,20 +145,33 @@ class Drone:
         self.ang_vel += (action[0] - action[1]) * DELTA_T * FORCE
         self.speed += (action[0] + action[1]) * DELTA_T * FORCE
 
+        # clip speed
+        self.ang_vel = np.clip(self.ang_vel, -MAX_ROT, MAX_ROT)
+        self.speed = np.clip(self.speed, -MAX_SPEED, MAX_SPEED)
+
         # apply velocity
         self.ang += self.ang_vel * DELTA_T
-        self.pos[0] += np.cos(self.ang) * self.speed * DELTA_T
-        self.pos[1] += np.sin(self.ang) * self.speed * DELTA_T
+        old_pos = self.pos.copy()
+        self.pos = self.pos + np.array([
+            np.cos(self.ang) * self.speed * DELTA_T,
+            np.sin(self.ang) * self.speed * DELTA_T
+        ]).squeeze(-1)
 
         # apply walls
-        self.pos = np.clip(self.pos, -BOUND, BOUND)        
+        if self.checkCollision(self.pos):
+            return self.reset(), 0, True, None     
 
         # check done
         self.t += DELTA_T
         if self.t >= self.max_t:
             return self.reset(), 0, True, None
 
-        return self.getState(), 0, False, None
+        reward = -(np.linalg.norm(self.pos - self.target) - np.linalg.norm(old_pos - self.target))
+
+        if np.linalg.norm(self.pos - self.target) < 1:
+            return self.reset(), reward, True, None
+
+        return self.getState(), reward, False, None
 
 
 def main():

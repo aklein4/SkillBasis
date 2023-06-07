@@ -30,10 +30,12 @@ class Basis(nn.Module):
         super().__init__()
         self.config = config
 
-        self.basis = nn.Parameter(torch.zeros(config.n_skills, config.latent_dim))
-        nn.init.xavier_uniform_(self.basis)
-
-        self.log_sigma = nn.Parameter(torch.ones([self.config.n_skills]))
+        base = torch.zeros(config.n_skills, config.latent_dim)
+        for i in range(self.config.n_skills):
+            base[i, i] = 1
+        self.basis = nn.Parameter(base)
+                       
+        self.log_sigma = nn.Parameter(torch.ones([1]))
 
 
     def forward(self, batch_size=None):
@@ -44,9 +46,9 @@ class Basis(nn.Module):
         basis = basis.expand(batch_size, -1, -1)
 
         log_sigma = self.log_sigma.unsqueeze(0)
-        log_sigma = log_sigma.expand(batch_size, -1)
+        log_sigma = log_sigma.expand(basis.shape[:-1])
 
-        return basis, torch.exp(log_sigma)
+        return basis, 2*torch.sigmoid(log_sigma)
     
 
 class Policy(nn.Module):
@@ -74,9 +76,9 @@ class Policy(nn.Module):
             dist = torch.distributions.Categorical(logits=out)
         
         else:
-            mus, log_sigmas = torch.split(out, self.config.action_dim, dim=-1)
+            mus = torch.tanh(out[..., :self.config.action_dim])
+            log_sigmas = out[..., self.config.action_dim:]
             dist = torch.distributions.Normal(mus, torch.sigmoid(log_sigmas))
-
         return dist
     
 
@@ -98,3 +100,39 @@ class Baseline(nn.Module):
         inp = torch.cat([s, z], dim=-1)
         return self.net(inp)
 
+
+class Manager(nn.Module):
+    def __init__(self, config=configs.DefaultManager):
+        super().__init__()
+        self.config = config
+
+        self.net = model_utils.Net(
+            2,
+            config.hidden_dim,
+            config.n_skills,
+            config.n_layers,
+            config.dropout
+        )
+    
+    
+    def forward(self, s):
+        logs = self.net(s)
+        return torch.distributions.Categorical(logits=logs)
+    
+
+class ManagerBaseline(nn.Module):
+    def __init__(self, config=configs.DefaultManagerBaseline):
+        super().__init__()
+        self.config = config
+
+        self.net = model_utils.Net(
+            2,
+            config.hidden_dim,
+            1,
+            config.n_layers,
+            config.dropout
+        )
+
+    
+    def forward(self, s, z):
+        return self.net(s)

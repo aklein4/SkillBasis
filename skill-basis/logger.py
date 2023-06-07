@@ -51,13 +51,20 @@ class Logger:
         fig, ax = plt.subplots(2, 2)
         
         ax[0, 0].plot(self.losses)
+        ax[0, 0].set_title("Transition-Skill Mutual Information")
+        
         ax[0, 1].plot(self.baseline_losses)
+        ax[0, 1].set_title("Baseline MSE Loss")
 
         ax[1, 0].plot(self.sigmas)
+        ax[1, 0].set_title("Discriminator Variance")
+        ax[1, 0].set_xlabel("Iteration (8 episodes per)")
+        
         ax[1, 1].plot(self.norms)
+        ax[1, 1].set_title("Latent Skill Cosine Similarity")
 
         fig.tight_layout()
-        fig.set_size_inches(10, 6)
+        fig.set_size_inches(10, 7)
         plt.savefig(os.path.join(self.log_loc, "progress.png"))
         plt.close(fig)
 
@@ -68,18 +75,20 @@ class Logger:
         self.losses.append(loss)
         self.baseline_losses.append(baseline_loss)
 
-        self.sigmas.append(torch.mean(torch.exp(self.basis_model.log_sigma)).item())
-        self.norms.append(torch.mean(torch.norm(self.basis_model.basis, dim=-1)).item())
+        self.sigmas.append(torch.mean(2*torch.sigmoid(self.basis_model.log_sigma)).item())
+        
+        normed_basis = self.basis_model.basis / torch.norm(self.basis_model.basis, dim=-1, keepdim=True)
+        cos_sim = torch.dot(normed_basis[0], normed_basis[1])
+        self.norms.append(cos_sim.item())
 
-        # log metrics
         self.write()
-        self.plot()
 
-        if len(self.losses)-1 % self.save_every == 0:
+        if (len(self.losses)-1) % self.save_every == 0:
             self.save()
 
 
     def save(self):
+        self.plot()
         torch.save(self.pi_model.state_dict(), os.path.join(self.log_loc, "pi_model.pt"))
         torch.save(self.encoder_model.state_dict(), os.path.join(self.log_loc, "encoder_model.pt"))
         torch.save(self.basis_model.state_dict(), os.path.join(self.log_loc, "basis_model.pt"))
