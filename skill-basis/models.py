@@ -13,7 +13,7 @@ class Encoder(nn.Module):
         self.config = config
 
         self.net = model_utils.Net(
-            config.state_dim,
+            2,
             config.hidden_dim,
             config.latent_dim,
             config.n_layers,
@@ -22,7 +22,7 @@ class Encoder(nn.Module):
 
     
     def forward(self, s):
-        return self.net(s)
+        return self.net(s[...,:2])
     
 
 class Basis(nn.Module):
@@ -30,15 +30,23 @@ class Basis(nn.Module):
         super().__init__()
         self.config = config
 
-        self.basis = nn.Parameter(torch.randn(config.n_skills, config.latent_dim))
-        self.sigma = nn.Parameter(torch.ones(1))
+        self.basis = nn.Parameter(torch.zeros(config.n_skills, config.latent_dim))
+        nn.init.xavier_uniform_(self.basis)
 
-    
-    def forward(self, s):
-        return (
-            self.basis.unsqueeze(0).expand(s.shape[0], -1, -1),
-            torch.exp(self.sigma).unsqueeze(0).expand(s.shape[0], self.config.n_skills)
-        )
+        self.log_sigma = nn.Parameter(torch.ones([self.config.n_skills]))
+
+
+    def forward(self, batch_size=None):
+        if batch_size is None:
+            return self.basis / torch.norm(self.basis, p=2, dim=-1, keepdim=True)
+
+        basis = self.basis.unsqueeze(0)
+        basis = basis.expand(batch_size, -1, -1)
+
+        log_sigma = self.log_sigma.unsqueeze(0)
+        log_sigma = log_sigma.expand(batch_size, -1)
+
+        return basis, torch.exp(log_sigma)
     
 
 class Policy(nn.Module):
@@ -56,6 +64,7 @@ class Policy(nn.Module):
 
     
     def forward(self, s, z):
+
         inp = torch.cat([s, z], dim=-1)
 
         out = self.net(inp)
@@ -66,7 +75,7 @@ class Policy(nn.Module):
         
         else:
             mus, log_sigmas = torch.split(out, self.config.action_dim, dim=-1)
-            dist = torch.distributions.Normal(mus, torch.exp(log_sigmas))
+            dist = torch.distributions.Normal(mus, torch.sigmoid(log_sigmas))
 
         return dist
     

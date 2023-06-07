@@ -13,6 +13,7 @@ class ReplayBuffer:
         states=None,
         next_states=None,
         actions=None,
+        og_probs=None,
         skills=None,
         d=None
     ):
@@ -29,6 +30,7 @@ class ReplayBuffer:
         self.d["next_states"] = torch.stack(next_states).to(DEVICE)
 
         self.d["actions"] = torch.stack(actions).to(DEVICE)
+        self.d["og_probs"] = torch.stack(og_probs).to(DEVICE)
 
         self.d["skills"] = torch.stack(skills).to(DEVICE)
 

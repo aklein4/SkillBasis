@@ -50,7 +50,7 @@ def main():
 
     logger = Logger(pi_model, encoder_model, basis_model, baseline_model, OUTPUT_DIR, SAVE_EVERY)
 
-    rocket = Drone(discrete=True)
+    rocket = Drone(discrete=False)
     skill_gen = SkillGenerator(pi_model.config.n_skills, SKILL_SIGMA)
     env = Environment(rocket, pi_model, skill_gen)
 

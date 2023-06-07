@@ -14,9 +14,9 @@ class Config(dict):
 DefaultConfig = Config(
 
     state_dim = 6,
-    action_dim = 9,
+    action_dim = 2,
 
-    n_skills = 3,
+    n_skills = 2,
     latent_dim = 4,
 
     hidden_dim = 32,
@@ -44,7 +44,7 @@ DefaultBaseline.inherit(DefaultConfig)
 
 DefaultPolicy = Config(
 
-    discrete = True,
+    discrete = False,
 
     action_min = -1.0,
     action_max = 1.0,

@@ -7,9 +7,9 @@ from utils import DEVICE, np2torch, torch2np
 
 class SkillGenerator():
     def __init__(self, n_skills, sigma):
-        self.dist = torch.distributions.Normal(
-            torch.zeros(n_skills, device=DEVICE),
-            sigma * torch.ones(n_skills, device=DEVICE)
+        self.dist = torch.distributions.Uniform(
+            torch.full([n_skills], -sigma, device=DEVICE).float(),
+            torch.full([n_skills], sigma, device=DEVICE).float()
         )
 
     def sample(self):
@@ -30,9 +30,8 @@ class Environment():
         self.env = env
 
 
-    def sample(self, n_episodes, skill=None):
-        if skill is None and self.skill_generator is None:
-            raise ValueError("Skill or generator must be provided.")
+    def sample(self, n_episodes, skill=None, greedy=False):
+        assert skill is not None or self.skill_generator is not None
 
         # set models modes
         self.pi_model.eval()
@@ -42,6 +41,7 @@ class Environment():
         states = []
         next_states = []
         actions = []
+        og_probs = []
         skills = []
 
         # nograd for inference
@@ -66,6 +66,14 @@ class Environment():
                     if not self.pi_model.config.discrete:
                         a = torch.clamp(a, self.pi_model.config.action_min, self.pi_model.config.action_max)
 
+                    if greedy:
+                        if self.pi_model.config.discrete:
+                            a = torch.argmax(pi.probs)
+                        else:
+                            a = pi.loc
+                    
+                    og_prob = torch.exp(pi.log_prob(a))
+
                     # step environment
                     new_s, r, done, info = self.env.step(torch2np(a))
                     new_s = np2torch(new_s).float()
@@ -79,6 +87,7 @@ class Environment():
                         states.append(s)
                         next_states.append(new_s)
                         actions.append(a)
+                        og_probs.append(og_prob)
                         skills.append(z)
 
         return ReplayBuffer(
@@ -86,6 +95,7 @@ class Environment():
             states,
             next_states,
             actions,
+            og_probs,
             skills
         )
         

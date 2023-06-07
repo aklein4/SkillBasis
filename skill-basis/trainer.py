@@ -12,7 +12,10 @@ from tqdm import tqdm
 BASELINE_LR_COEF = 1
 
 REG_L2 = 1e-3
+REG_ENTROP = 0
 
+LOG_CLIP = -7
+PPO_CLIP = 0.2
 
 class Trainer:
     def __init__(self,
@@ -53,12 +56,12 @@ class Trainer:
     def _loss(self, batch):
 
         # get state encodings
-        l = self.encoder_model(batch.seed_states)
+        l = self.encoder_model(batch.states)
         l_next = self.encoder_model(batch.next_states)
         delta_l = l_next - l
 
         # get skills basis
-        L, z_sigmas = self.basis_model(batch.states)
+        L, z_sigmas = self.basis_model(len(batch))
         # normalize basis
         L_reg = torch.mean( torch.abs(1 - torch.norm(L, p=2, dim=-1) ) )
         L = L / torch.norm(L, p=2, dim=-1, keepdim=True).detach()
@@ -69,6 +72,7 @@ class Trainer:
 
         # get prob of actual skill
         z_log_prob = torch.sum(z_dist.log_prob(batch.skills), dim=-1)
+        z_log_prob = torch.clamp_min(z_log_prob, LOG_CLIP)
         z_loss = -torch.mean(z_log_prob)
 
         # get z prior and reward
@@ -82,14 +86,22 @@ class Trainer:
 
         # use baseline
         baseline_loss = F.mse_loss(V, value)
-        advantage = value - V.detach()
+        advantage = (value - V.detach()).unsqueeze(-1)
 
-        # get pi error
+        # get pi
         pi = self.pi_model(batch.states, batch.skills)
         log_probs = pi.log_prob(batch.actions)
-        if log_probs.dim() > 1:
-            log_probs = torch.sum(log_probs, dim=-1)
-        pi_loss = -torch.mean(log_probs * advantage)
+        probs = torch.exp(log_probs)
+        ratio = probs / batch.og_probs
+
+        # get pi loss
+        inner = torch.sum(
+                torch.clamp(ratio, 1 - PPO_CLIP, 1 + PPO_CLIP) * advantage,
+                dim=-1
+            )
+        pi_loss = -torch.mean(
+            inner
+        )
 
         # get total loss
         return pi_loss + z_loss + baseline_loss + REG_L2*L_reg, torch.sum(reward).item(), len(batch)*baseline_loss.item()
@@ -149,6 +161,7 @@ class Trainer:
                     pi_opt.zero_grad()
                     enc_opt.zero_grad()
                     basis_opt.zero_grad()
+                    baseline_opt.zero_grad()
 
                     loss, to_log, to_baseline_log = self._loss(batch)
 
@@ -177,7 +190,6 @@ class Trainer:
             pbar.set_postfix({
                 'iter': it,
                 'r': round(logging_loss, 3),
-                'buf': len(buffer)
             })
         
         # save models

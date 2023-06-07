@@ -10,10 +10,8 @@ RANDOM_RESET = True
 CANVAS_SIZE = 500
 
 DELTA_T = 0.1
-FORCE = 1
-
-ANG_CLIP = np.pi * 2
-SPEED_CLIP = 5.0
+FORCE = 5
+DRAG = 0.25
 
 BOUND = 20.0
 
@@ -90,47 +88,51 @@ class Drone:
 
         if RANDOM_RESET:
             self.pos = np.random.uniform(-BOUND, BOUND, 2)
-            self.speed = np.random.uniform(-SPEED_CLIP, SPEED_CLIP, 1)
+            self.speed = np.random.normal(0, FORCE/2, 1)
             self.ang = np.random.uniform(-np.pi, np.pi, 1)
-            self.ang_vel = np.random.uniform(-ANG_CLIP, ANG_CLIP, 1)
+            self.ang_vel = np.random.normal(0, np.pi/4, 1)
 
-        self.pos = np.zeros(2)
-        self.speed = np.zeros(1)
-
-        self.ang = np.zeros(1)
-        self.ang_vel = np.zeros(1)
+        else:
+            self.pos = np.zeros(2)
+            self.speed = np.zeros(1)
+            self.ang = np.zeros(1)
+            self.ang_vel = np.zeros(1)
 
         return self.getState()
     
 
     def getState(self):
         dir = np.array([np.cos(self.ang), np.sin(self.ang)])[:, 0]
-        return np.concatenate([
+        state = np.concatenate([
             self.pos, dir, self.speed, self.ang_vel
         ], axis=0)
+
+        return state
     
 
     def step(self, action):
         if self.discrete:
             action = DISCRETE_ACTIONS[action]
 
+        # apply drag
+        action[0] -= DRAG * (self.speed + self.ang_vel)
+        action[1] -= DRAG * (self.speed - self.ang_vel)
+
         # apply acceleration        
         self.ang_vel += (action[0] - action[1]) * DELTA_T * FORCE
         self.speed += (action[0] + action[1]) * DELTA_T * FORCE
-
-        # clip speed
-        self.ang_vel = np.clip(self.ang_vel, -ANG_CLIP, ANG_CLIP)
-        self.speed = np.clip(self.speed, -SPEED_CLIP, SPEED_CLIP)
 
         # apply velocity
         self.ang += self.ang_vel * DELTA_T
         self.pos[0] += np.cos(self.ang) * self.speed * DELTA_T
         self.pos[1] += np.sin(self.ang) * self.speed * DELTA_T
 
-        self.t += DELTA_T
+        # apply walls
+        self.pos = np.clip(self.pos, -BOUND, BOUND)        
 
         # check done
-        if np.max(np.abs(self.pos)) > BOUND or self.t >= self.max_t:
+        self.t += DELTA_T
+        if self.t >= self.max_t:
             return self.reset(), 0, True, None
 
         return self.getState(), 0, False, None
@@ -141,7 +143,7 @@ def main():
     drone.reset()
 
     while True:
-        drone.step(5)
+        drone.step(np.random.randint(0, 9))
         drone.render()
         time.sleep(DELTA_T)
 

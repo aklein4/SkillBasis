@@ -24,6 +24,8 @@ class Logger:
         # metrics to track
         self.losses = []
         self.baseline_losses = []
+        self.sigmas = []
+        self.norms = []
 
         # save location
         self.log_loc = log_loc
@@ -35,23 +37,27 @@ class Logger:
         # initialize metric csv
         with open(os.path.join(self.log_loc, "metrics.csv"), 'w') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-            spamwriter.writerow(["epoch"]  + ["loss", "baseline_loss"])
+            spamwriter.writerow(["epoch"]  + ["loss", "baseline_loss", "sigma", "norm"])
 
 
     def write(self):
         with open(os.path.join(self.log_loc, "metrics.csv"), 'a') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-            spamwriter.writerow([len(self.losses)-1] + [self.losses[-1], self.baseline_losses[-1]])
+            spamwriter.writerow([len(self.losses)-1] + [self.losses[-1], self.baseline_losses[-1], self.sigmas[-1]])
 
 
     def plot(self):
 
-        fig, ax = plt.subplots(2, 1)
+        fig, ax = plt.subplots(2, 2)
         
-        ax[0].plot(self.losses)
-        ax[1].plot(self.baseline_losses)
+        ax[0, 0].plot(self.losses)
+        ax[0, 1].plot(self.baseline_losses)
+
+        ax[1, 0].plot(self.sigmas)
+        ax[1, 1].plot(self.norms)
 
         fig.tight_layout()
+        fig.set_size_inches(10, 6)
         plt.savefig(os.path.join(self.log_loc, "progress.png"))
         plt.close(fig)
 
@@ -61,6 +67,9 @@ class Logger:
         # save metrics
         self.losses.append(loss)
         self.baseline_losses.append(baseline_loss)
+
+        self.sigmas.append(torch.mean(torch.exp(self.basis_model.log_sigma)).item())
+        self.norms.append(torch.mean(torch.norm(self.basis_model.basis, dim=-1)).item())
 
         # log metrics
         self.write()
