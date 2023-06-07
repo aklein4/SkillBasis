@@ -5,6 +5,8 @@ import tkinter as tk
 import time
 
 
+RANDOM_RESET = True
+
 CANVAS_SIZE = 500
 
 DELTA_T = 0.1
@@ -80,9 +82,17 @@ class Drone:
 
             self.root.update()
 
+            time.sleep(DELTA_T)
+
     
     def reset(self):
         self.t = 0
+
+        if RANDOM_RESET:
+            self.pos = np.random.uniform(-BOUND, BOUND, 2)
+            self.speed = np.random.uniform(-SPEED_CLIP, SPEED_CLIP, 1)
+            self.ang = np.random.uniform(-np.pi, np.pi, 1)
+            self.ang_vel = np.random.uniform(-ANG_CLIP, ANG_CLIP, 1)
 
         self.pos = np.zeros(2)
         self.speed = np.zeros(1)

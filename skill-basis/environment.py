@@ -20,7 +20,7 @@ class SkillGenerator():
 
 
 class Environment():
-    def __init__(self, env, pi_model, skill_generator):
+    def __init__(self, env, pi_model, skill_generator=None):
 
         self.pi_model = pi_model
 
@@ -30,12 +30,15 @@ class Environment():
         self.env = env
 
 
-    def sample(self, n_episodes):
+    def sample(self, n_episodes, skill=None):
+        if skill is None and self.skill_generator is None:
+            raise ValueError("Skill or generator must be provided.")
 
         # set models modes
         self.pi_model.eval()
 
         # things to collect
+        seed_states = []
         states = []
         next_states = []
         actions = []
@@ -47,10 +50,14 @@ class Environment():
 
                 # reset environment
                 s = np2torch(self.env.reset()).float()
+                seed = s
 
-                z = self.skill_generator.sample()
+                z = skill
+                if skill is None:
+                    z = self.skill_generator.sample()
 
                 while True:
+                    self.env.render()
 
                     # z = self.skill_generator.sample()
 
@@ -68,12 +75,14 @@ class Environment():
                         break
 
                     else:
+                        seed_states.append(seed)
                         states.append(s)
                         next_states.append(new_s)
                         actions.append(a)
                         skills.append(z)
 
         return ReplayBuffer(
+            seed_states,
             states,
             next_states,
             actions,

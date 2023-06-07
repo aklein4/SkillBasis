@@ -53,7 +53,9 @@ class Trainer:
     def _loss(self, batch):
 
         # get state encodings
-        l = self.encoder_model(batch.next_states)
+        l = self.encoder_model(batch.seed_states)
+        l_next = self.encoder_model(batch.next_states)
+        delta_l = l_next - l
 
         # get skills basis
         L, z_sigmas = self.basis_model(batch.states)
@@ -62,7 +64,7 @@ class Trainer:
         L = L / torch.norm(L, p=2, dim=-1, keepdim=True).detach()
 
         # get predicted skill
-        z_mus = torch.bmm(L, l.unsqueeze(-1)).squeeze(-1)
+        z_mus = torch.bmm(L, delta_l.unsqueeze(-1)).squeeze(-1)
         z_dist = torch.distributions.Normal(z_mus, z_sigmas)
 
         # get prob of actual skill

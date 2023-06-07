@@ -9,6 +9,7 @@ import random
 
 class ReplayBuffer:
     def __init__(self,
+        seed_states=None,
         states=None,
         next_states=None,
         actions=None,
@@ -23,6 +24,7 @@ class ReplayBuffer:
             return
 
         # convert all to tensors
+        self.d["seed_states"] = torch.stack(seed_states).to(DEVICE)
         self.d["states"] = torch.stack(states).to(DEVICE)
         self.d["next_states"] = torch.stack(next_states).to(DEVICE)
 
