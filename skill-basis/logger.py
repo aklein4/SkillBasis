@@ -7,20 +7,23 @@ import matplotlib.pyplot as plt
 
 
 class Logger:
-    def __init__(self, pi, baseline, n_modes, log_loc, save_every):
-        """ Logger to save training metrics.
+    def __init__(self,
+            pi_model,
+            encoder_model,
+            basis_model,
+            baseline_model,
+            log_loc,
+            save_every
+        ):
 
-        Args:
-            log_loc (str): Folder for saving
-        """
-
-        self.pi = pi
-        self.baseline = baseline
-
-        self.n_modes = n_modes
+        self.pi_model = pi_model
+        self.encoder_model = encoder_model
+        self.basis_model = basis_model
+        self.baseline_model = baseline_model
 
         # metrics to track
-        self.returns = [[] for _ in range(n_modes)]
+        self.losses = []
+        self.baseline_losses = []
 
         # save location
         self.log_loc = log_loc
@@ -32,59 +35,43 @@ class Logger:
         # initialize metric csv
         with open(os.path.join(self.log_loc, "metrics.csv"), 'w') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-            spamwriter.writerow(["epoch"]  + ["return_{}".format(i) for i in range(n_modes)])
+            spamwriter.writerow(["epoch"]  + ["loss", "baseline_loss"])
 
 
     def write(self):
-        """
-        Write latest metrics to csv.
-        """
         with open(os.path.join(self.log_loc, "metrics.csv"), 'a') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-            spamwriter.writerow([len(self.returns)-1] + [self.returns[i][-1] for i in range(self.n_modes)])
+            spamwriter.writerow([len(self.losses)-1] + [self.losses[-1], self.baseline_losses[-1]])
 
 
     def plot(self):
-        """
-        Plot the metrics' progress.
-        """
 
-        # plot returns
-        for i in range(self.n_modes):
-            plt.plot(self.returns[i])
+        fig, ax = plt.subplots(2, 1)
+        
+        ax[0].plot(self.losses)
+        ax[1].plot(self.baseline_losses)
+
+        fig.tight_layout()
         plt.savefig(os.path.join(self.log_loc, "progress.png"))
-        plt.clf()
-
-        # save values
-        # self.pi.net.showValues(os.path.join(self.log_loc, "genes.png"))
+        plt.close(fig)
 
 
-    def log(self, r):
-        """ Log new metrics.
-
-        Args:
-            r (float): Latest reward
-            q_loss (float): Latest Q loss
-        """
+    def log(self, loss, baseline_loss):
 
         # save metrics
-        for i in range(self.n_modes):
-            self.returns[i].append(r[i])
+        self.losses.append(loss)
+        self.baseline_losses.append(baseline_loss)
 
         # log metrics
         self.write()
         self.plot()
 
-        if len(self.returns)-1 % self.save_every == 0:
+        if len(self.losses)-1 % self.save_every == 0:
             self.save()
 
 
     def save(self):
-        """ Save model state dicts to folder.
-
-        Args:
-            q_model (torch.module): Q network
-            pi_model (torch.module): Parameter network
-        """
-        torch.save(self.baseline.state_dict(), os.path.join(self.log_loc, "baseline_model.pt"))
-        torch.save(self.pi.state_dict(), os.path.join(self.log_loc, "pi_model.pt"))
+        torch.save(self.pi_model.state_dict(), os.path.join(self.log_loc, "pi_model.pt"))
+        torch.save(self.encoder_model.state_dict(), os.path.join(self.log_loc, "encoder_model.pt"))
+        torch.save(self.basis_model.state_dict(), os.path.join(self.log_loc, "basis_model.pt"))
+        torch.save(self.baseline_model.state_dict(), os.path.join(self.log_loc, "baseline_model.pt"))

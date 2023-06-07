@@ -291,7 +291,12 @@ class Net(nn.Module):
                     nn.Dropout(dropout),
                     nn.ELU(),
                 )
-            for _ in range(n_layers)]
+            for _ in range(n_layers-1)],
+
+            nn.Sequential(
+                    nn.Linear(h_dim, h_dim),
+                    nn.ELU(),
+            )
         )
 
         self.out_layer = nn.Sequential(

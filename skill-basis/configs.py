@@ -1,45 +1,53 @@
 
 
 class Config(dict):
+
     def __getattr__(self, attr):
         return self[attr]
+    
+    def inherit(self, other):
+        for k in other.keys():
+            if k not in self.keys():
+                self[k] = other[k]
 
 
-DefaultBaseline = Config(
+DefaultConfig = Config(
 
-    n_tokens = 5,
-    state_size = 16,
-    state_dim = 2,
+    state_dim = 6,
+    action_dim = 9,
 
-    hidden_dim = 16,
-    n_layers = 3,
+    n_skills = 3,
+    latent_dim = 4,
 
-    n_heads = 1,
-    rank = 16,
-
-    modes = 2,
+    hidden_dim = 32,
+    n_layers = 2,
 
     dropout = 0.1
 
 )
+
+
+DefaultEncoder = Config(
+)
+DefaultEncoder.inherit(DefaultConfig)
+
+
+DefaultBasis = Config(
+)
+DefaultBasis.inherit(DefaultConfig)
+
+
+DefaultBaseline = Config(
+)
+DefaultBaseline.inherit(DefaultConfig)
 
 
 DefaultPolicy = Config(
 
-    n_tokens = 5,
-    state_size = 16,
-    state_dim = 2,
+    discrete = True,
 
-    action_size = 4,
-
-    hidden_dim = 16,
-    n_layers = 3,
-
-    n_heads = 1,
-    rank = 16,
-
-    modes = 2,
-
-    dropout = 0.1
+    action_min = -1.0,
+    action_max = 1.0,
 
 )
+DefaultPolicy.inherit(DefaultConfig)

@@ -4,59 +4,41 @@ from torch import nn
 from torch.nn import functional as F
 
 import configs
-from model_utils import EigenNet, EigenTransformer, get2dEmbedding
+import model_utils
 
 
-class Baseline(nn.Module):
-    def __init__(self, config=configs.DefaultBaseline):
+class Encoder(nn.Module):
+    def __init__(self, config=configs.DefaultEncoder):
         super().__init__()
         self.config = config
 
-        self.embeddings = nn.Embedding(config.n_tokens, config.hidden_dim)
-
-        self.positional_embedding = nn.Parameter(get2dEmbedding(config.state_size, config.hidden_dim).unsqueeze(0))
-        # self.positional_embedding.requires_grad = False
-
-        self.cls = nn.Parameter(torch.randn(1, 1, config.hidden_dim))
-
-        self.transformer = EigenTransformer(
+        self.net = model_utils.Net(
+            config.state_dim,
             config.hidden_dim,
-            self.config.n_heads,
-            self.config.rank,
-            self.config.modes,
-            self.config.n_layers,
-            self.config.dropout
+            config.latent_dim,
+            config.n_layers,
+            config.dropout
         )
 
-        self.out_layer = nn.Linear(config.hidden_dim, 1)
-
-
-    def forward(self, s, g):
-        unbatch = False
-        if s.dim() == self.config.state_dim:
-            unbatch = True
-            s = s.unsqueeze(0)
-
-        # apply embeddings and flatten
-        x = self.embeddings(s)
-        x = x.view(x.shape[0], -1, x.shape[-1])
-
-        # add positional embedding and cls
-        x = x + self.positional_embedding
-        x = torch.cat([self.cls.repeat(x.shape[0], 1, 1), x], dim=1)
-
-        # get output
-        y = self.transformer(x, g)
-        out = self.out_layer(y[:, 0])
-
-        if unbatch:
-            out = out.squeeze(0)
-
-        return out
+    
+    def forward(self, s):
+        return self.net(s)
     
 
-    def normalize(self):
-        self.transformer.normalize()
+class Basis(nn.Module):
+    def __init__(self, config=configs.DefaultBasis):
+        super().__init__()
+        self.config = config
+
+        self.basis = nn.Parameter(torch.randn(config.n_skills, config.latent_dim))
+        self.sigma = nn.Parameter(torch.ones(1))
+
+    
+    def forward(self, s):
+        return (
+            self.basis.unsqueeze(0).expand(s.shape[0], -1, -1),
+            torch.exp(self.sigma).unsqueeze(0).expand(s.shape[0], self.config.n_skills)
+        )
     
 
 class Policy(nn.Module):
@@ -64,50 +46,46 @@ class Policy(nn.Module):
         super().__init__()
         self.config = config
 
-        self.embeddings = nn.Embedding(config.n_tokens, config.hidden_dim)
-
-        self.positional_embedding = nn.Parameter(get2dEmbedding(config.state_size, config.hidden_dim).unsqueeze(0))
-        # self.positional_embedding.requires_grad = False
-
-        self.cls = nn.Parameter(torch.randn(1, 1, config.hidden_dim))
-
-        self.transformer = EigenTransformer(
+        self.net = model_utils.Net(
+            config.state_dim + config.n_skills,
             config.hidden_dim,
-            self.config.n_heads,
-            self.config.rank,
-            self.config.modes,
-            self.config.n_layers,
-            self.config.dropout
+            config.action_dim if config.discrete else config.action_dim * 2,
+            config.n_layers,
+            config.dropout
         )
 
-        self.out_layer = nn.Linear(config.hidden_dim, config.action_size)
+    
+    def forward(self, s, z):
+        inp = torch.cat([s, z], dim=-1)
 
+        out = self.net(inp)
 
-    def forward(self, s, g):
-        unbatch = False
-        if s.dim() == self.config.state_dim:
-            unbatch = True
-            s = s.unsqueeze(0)
-
-        # apply embeddings and flatten
-        x = self.embeddings(s)
-        x = x.view(x.shape[0], -1, x.shape[-1])
-
-        # add positional embedding and cls
-        x = x + self.positional_embedding
-        x = torch.cat([self.cls.repeat(x.shape[0], 1, 1), x], dim=1)
-
-        # get output
-        y = self.transformer(x, g)
-        out = self.out_layer(y[:, 0])
-
-        if unbatch:
-            out = out.squeeze(0)
-
-        dist = torch.distributions.Categorical(logits=out)
+        dist = None
+        if self.config.discrete:
+            dist = torch.distributions.Categorical(logits=out)
+        
+        else:
+            mus, log_sigmas = torch.split(out, self.config.action_dim, dim=-1)
+            dist = torch.distributions.Normal(mus, torch.exp(log_sigmas))
 
         return dist
     
 
-    def normalize(self):
-        self.transformer.normalize()
+class Baseline(nn.Module):
+    def __init__(self, config=configs.DefaultBaseline):
+        super().__init__()
+        self.config = config
+
+        self.net = model_utils.Net(
+            config.state_dim + config.n_skills,
+            config.hidden_dim,
+            1,
+            config.n_layers,
+            config.dropout
+        )
+
+    
+    def forward(self, s, z):
+        inp = torch.cat([s, z], dim=-1)
+        return self.net(inp)
+

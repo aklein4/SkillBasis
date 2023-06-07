@@ -1,82 +1,82 @@
 
 import torch
 
-import gym
-
 from replay_buffer import ReplayBuffer
 from utils import DEVICE, np2torch, torch2np
 
 
+class SkillGenerator():
+    def __init__(self, n_skills, sigma):
+        self.dist = torch.distributions.Normal(
+            torch.zeros(n_skills, device=DEVICE),
+            sigma * torch.ones(n_skills, device=DEVICE)
+        )
+
+    def sample(self):
+        return self.dist.sample()
+    
+    def log_prob(self, z):
+        return self.dist.log_prob(z)
+
+
 class Environment():
-    def __init__(self, pi_model, env, discount=None):
+    def __init__(self, env, pi_model, skill_generator):
 
         self.pi_model = pi_model
 
-        self.discount = discount
+        self.skill_generator = skill_generator
 
         # create environment
         self.env = env
 
 
-    def sample(self, n_episodes, mode, food=None):
-        if food is None:
-            food = [mode]
+    def sample(self, n_episodes):
 
         # set models modes
         self.pi_model.eval()
 
         # things to collect
         states = []
+        next_states = []
         actions = []
-        og_probs = []
-        returns = []
-        modes = []
-        total_returns = []
+        skills = []
 
         # nograd for inference
-        torch.no_grad()
+        with torch.no_grad():
+            for _ in range(n_episodes):
 
-        for _ in range(n_episodes):
+                # reset environment
+                s = np2torch(self.env.reset()).float()
 
-            # reset environment
-            s = np2torch(self.env.reset(food))
+                z = self.skill_generator.sample()
 
-            rewards = []
+                while True:
 
-            while True:
+                    # z = self.skill_generator.sample()
 
-                pi = self.pi_model(s, torch.tensor(mode).to(DEVICE))
-                a = pi.sample().item()
-                
-                og_prob = pi.probs[a].item()
+                    pi = self.pi_model(s, z)
+                    a = pi.sample()
+                    if not self.pi_model.config.discrete:
+                        a = torch.clamp(a, self.pi_model.config.action_min, self.pi_model.config.action_max)
 
-                # step environment
-                new_s, r, done, info = self.env.step(a)
-                new_s = np2torch(new_s)
+                    # step environment
+                    new_s, r, done, info = self.env.step(torch2np(a))
+                    new_s = np2torch(new_s).float()
 
-                # store transition                    
-                states.append(s)
-                actions.append(a)
-                og_probs.append(og_prob)
-                rewards.append(r)
-                modes.append(mode)
+                    # another step or end
+                    if done:
+                        break
 
-                # another step or end
-                if done:
-                    total_returns.append(sum(rewards))
-                    for i in range(2, len(rewards)+1):
-                        rewards[-i] += rewards[-i+1] * self.discount
-                    returns.extend(rewards)
-
-                    break
-
-        # grad for training
-        torch.enable_grad()
+                    else:
+                        states.append(s)
+                        next_states.append(new_s)
+                        actions.append(a)
+                        skills.append(z)
 
         return ReplayBuffer(
             states,
+            next_states,
             actions,
-            og_probs,
-            returns,
-            modes
-        ), total_returns
+            skills
+        )
+        

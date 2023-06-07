@@ -10,10 +10,9 @@ import random
 class ReplayBuffer:
     def __init__(self,
         states=None,
+        next_states=None,
         actions=None,
-        og_probs=None,
-        returns=None,
-        modes=None,
+        skills=None,
         d=None
     ):
         assert states is not None or d is not None, "Must provide states or d"
@@ -25,14 +24,11 @@ class ReplayBuffer:
 
         # convert all to tensors
         self.d["states"] = torch.stack(states).to(DEVICE)
+        self.d["next_states"] = torch.stack(next_states).to(DEVICE)
 
-        self.d["actions"] = torch.tensor(actions).to(DEVICE)
+        self.d["actions"] = torch.stack(actions).to(DEVICE)
 
-        self.d["og_probs"] = torch.tensor(og_probs).to(DEVICE)
-
-        self.d["returns"] = torch.tensor(returns).to(DEVICE).float()
-
-        self.d["modes"] = torch.tensor(modes).to(DEVICE)
+        self.d["skills"] = torch.stack(skills).to(DEVICE)
 
         for k in self.d.keys():
             self.d[k].detach_()
@@ -92,7 +88,7 @@ class ReplayBuffer:
 
         # add other buffer
         for k in out.d.keys():
-            out.d[k] = torch.cat([out.d[k], other.d[k]])
+            out.d[k] = torch.cat([out.d[k], other.d[k]], dim=0)
 
         return out
     
