@@ -9,14 +9,14 @@ from drone import Drone
 import utils
 
 # result directory
-OUTPUT_DIR = 'run2'
+OUTPUT_DIR = 'test'
 SAVE_EVERY = 32
 
 # training parameters
-NUM_ITERS = 2048*2 # number of training iterations
+NUM_ITERS = 2048 # number of training iterations
 UPDATE_EVERY = 8
 
-EPISODES_PER_ITER = 2 # episodes sampled per iteration
+EPISODES_PER_ITER = 8 # episodes sampled per iteration
 EPOCHS_PER_ITER = 1 # epochs trained per iteration
 
 LR = 1e-4 # learning rate
@@ -51,7 +51,7 @@ def main():
     logger = Logger(pi_model, encoder_model, basis_model, baseline_model, OUTPUT_DIR, SAVE_EVERY)
 
     rocket = Drone(discrete=False)
-    skill_gen = SkillGenerator(pi_model.config.n_skills, SKILL_SIGMA)
+    skill_gen = SkillGenerator(pi_model.config.n_skills)
     env = Environment(rocket, pi_model, skill_gen)
 
     trainer = Trainer(env, pi_model, encoder_model, basis_model, baseline_model, logger)

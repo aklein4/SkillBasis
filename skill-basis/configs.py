@@ -17,7 +17,6 @@ DefaultConfig = Config(
     action_dim = 2,
 
     n_skills = 2,
-    latent_dim = 4,
 
     hidden_dim = 32,
     n_layers = 2,

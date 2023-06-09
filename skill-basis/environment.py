@@ -4,19 +4,33 @@ import torch
 from replay_buffer import ReplayBuffer
 from utils import DEVICE, np2torch, torch2np
 
+import math
+
 
 class SkillGenerator():
-    def __init__(self, n_skills, sigma):
-        self.dist = torch.distributions.Uniform(
-            torch.full([n_skills], -sigma, device=DEVICE).float(),
-            torch.full([n_skills], sigma, device=DEVICE).float()
+    def __init__(self, n_skills):
+        """ Samples a vector randomly from an n-sphere """
+        self.n_skills = n_skills
+
+        # normal distribution
+        center = torch.zeros(n_skills, device=DEVICE).float()
+        self.dist = torch.distributions.Normal(
+            center, center**0
         )
 
+        # calculate the log surface area for log_prob
+        self.log_s = math.log(2) + math.log(math.pi) * (self.n_skills / 2) - math.lgamma(self.n_skills / 2)
+
+
     def sample(self):
-        return self.dist.sample()
+        # normalized on sphere
+        v = self.dist.sample()
+        return v / torch.norm(v, p=2)
     
+
     def log_prob(self, z):
-        return self.dist.log_prob(z)
+        # surface area of the n-sphere
+        return torch.full_like(z, self.log_s)
 
 
 class Environment():

@@ -15,7 +15,7 @@ class Encoder(nn.Module):
         self.net = model_utils.Net(
             2,
             config.hidden_dim,
-            config.latent_dim,
+            config.n_skills,
             config.n_layers,
             config.dropout
         )
@@ -30,12 +30,10 @@ class Basis(nn.Module):
         super().__init__()
         self.config = config
 
-        base = torch.zeros(config.n_skills, config.latent_dim)
+        base = torch.zeros(config.n_skills, config.n_skills)
         for i in range(self.config.n_skills):
             base[i, i] = 1
         self.basis = nn.Parameter(base)
-                       
-        self.log_sigma = nn.Parameter(torch.ones([1]))
 
 
     def forward(self, batch_size=None):
@@ -45,10 +43,7 @@ class Basis(nn.Module):
         basis = self.basis.unsqueeze(0)
         basis = basis.expand(batch_size, -1, -1)
 
-        log_sigma = self.log_sigma.unsqueeze(0)
-        log_sigma = log_sigma.expand(basis.shape[:-1])
-
-        return basis, 2*torch.sigmoid(log_sigma)
+        return basis
     
 
 class Policy(nn.Module):

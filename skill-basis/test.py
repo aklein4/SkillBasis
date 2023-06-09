@@ -12,7 +12,7 @@ import os
 import matplotlib.pyplot as plt
 
 
-LOAD_DIR = 'run2'
+LOAD_DIR = 'run'
 OUT_DIR = "figs"
 
 def main():
@@ -41,7 +41,8 @@ def main():
     grid = torch.cat([grid[:, :, :1], grid], dim=-1)
 
     plt.imshow(utils.torch2np(grid))
-    plt.(save("vis.png"))
+    plt.savefig("vis.png")
+    exit()
 
     pi_model = Policy()
     pi_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "pi_model.pt"), map_location='cpu'))

@@ -75,7 +75,7 @@ class Logger:
         self.losses.append(loss)
         self.baseline_losses.append(baseline_loss)
 
-        self.sigmas.append(torch.mean(2*torch.sigmoid(self.basis_model.log_sigma)).item())
+        self.sigmas.append(1)
         
         normed_basis = self.basis_model.basis / torch.norm(self.basis_model.basis, dim=-1, keepdim=True)
         cos_sim = torch.dot(normed_basis[0], normed_basis[1])

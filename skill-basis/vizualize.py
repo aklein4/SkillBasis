@@ -15,11 +15,11 @@ import matplotlib.pyplot as plt
 LOAD_DIR = 'run2'
 
 RUNNERS = [
-    [1.0, 0.0],
-    [0.5, 0.5],
-    [0.0, 1.0],
-    [-0.5, 0.5],
-    [-1.0, 0.0]
+    [0.5, 0.0],
+    [0.25, 0.25],
+    [0.0, 0.5],
+    [-0.25, 0.25],
+    [-0.5, 0.0]
 ]
 
 def main():
@@ -40,6 +40,8 @@ def main():
     for i in range(len(RUNNERS)):
         plt.plot(states[i][:, 0], states[i][:, 1], label=str(RUNNERS[i]))
 
+    plt..xlim(-20, 20)
+    plt.ylim(-20, 20)
     plt.legend()
     plt.savefig("path.png")
 

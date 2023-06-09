@@ -12,11 +12,8 @@ import math
 
 BASELINE_LR_COEF = 1
 
-REG_L2 = 1e-3
-REG_ENTROP = 0.0
-
-LOG_CLIP = -7
 PPO_CLIP = 0.2
+
 
 class Trainer:
     def __init__(self,
@@ -61,30 +58,19 @@ class Trainer:
         l_next = self.encoder_model(batch.next_states)
         delta_l = l_next - l
 
-        # get skills basis
-        L, z_sigmas = self.basis_model(len(batch))
-        # normalize basis
-        L_reg = torch.mean( torch.abs(1 - torch.norm(L, p=2, dim=-1) ) )
-        L = L / torch.norm(L, p=2, dim=-1, keepdim=True).detach()
+        # get the probability of each skill
+        z_log_prob = torch.bmm(batch.skills.unsqueeze(-2), delta_l.unsqueeze(-1)).squeeze(-1, -2)
 
-        # get predicted skill
-        z_mus = torch.bmm(L, delta_l.unsqueeze(-1)).squeeze(-1)
-        z_dist = torch.distributions.Normal(z_mus, z_sigmas)
-
-        # get prob of actual skill
-        z_log_prob = torch.sum(z_dist.log_prob(batch.skills), dim=-1)
-        z_log_prob = torch.clamp(z_log_prob, min=LOG_CLIP, max=0)
+        # get loss for encoders
         z_loss = -torch.mean(z_log_prob)
 
         # get z prior and reward
-        z_log_prior = torch.sum(self.env.skill_generator.log_prob(batch.skills), dim=-1)
-        z_log_prior = torch.clamp(z_log_prior, min=LOG_CLIP, max=0)
-        reward = z_log_prob.detach() - z_log_prior
+        rewards = z_log_prob # add entropy term?
 
-        # get baselines
+        # get baseline and value
         V = self.baseline_model(batch.states, batch.skills).squeeze(-1)
-        V_next = self.target_model(batch.next_states, batch.skills).squeeze(-1).detach()
-        value = reward + self.discount * V_next
+        V_next = self.target_model(batch.next_states, batch.skills).squeeze(-1)
+        value = (rewards + self.discount * V_next).detach()
 
         # use baseline
         baseline_loss = F.mse_loss(V, value)
@@ -94,7 +80,7 @@ class Trainer:
         pi = self.pi_model(batch.states, batch.skills)
         log_probs = pi.log_prob(batch.actions)
         probs = torch.exp(log_probs)
-        ratio = probs / torch.clamp(batch.og_probs, min=math.exp(LOG_CLIP), max=1)
+        ratio = probs / batch.og_probs
         ratio = torch.nan_to_num(ratio, nan=1, posinf=1, neginf=1)
 
         # get pi loss
@@ -108,10 +94,8 @@ class Trainer:
             )
         )
 
-        entrop_loss = -torch.mean(torch.sum(log_probs, dim=-1))
-
         # get total loss
-        return pi_loss + z_loss + baseline_loss + REG_L2*L_reg + REG_ENTROP*entrop_loss, torch.sum(reward).item(), len(batch)*baseline_loss.item()
+        return pi_loss + z_loss + baseline_loss, torch.sum(rewards).item(), len(batch)*baseline_loss.item()
 
 
     def train(self,
