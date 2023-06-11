@@ -19,7 +19,10 @@ RUNNERS = [
     [0.5, 0.5],
     [0.0, 1.0],
     [-0.5, 0.5],
-    [-1.0, 0.0]
+    [-1.0, 0.0],
+    [-0.5, -0.5],
+    [0.0, -1.0],
+    [0.5, -0.5]
 ]
 
 def main():
@@ -41,7 +44,7 @@ def main():
         plt.plot(states[i][:, 0], states[i][:, 1], label=str(RUNNERS[i]))
 
     plt.legend()
-    plt.savefig("path.png")
+    plt.show()
 
 
 if __name__ == '__main__':

@@ -6,7 +6,6 @@ from torch.nn import functional as F
 import configs
 import model_utils
 
-
 class Encoder(nn.Module):
     def __init__(self, config=configs.DefaultEncoder):
         super().__init__()
@@ -15,7 +14,7 @@ class Encoder(nn.Module):
         self.net = model_utils.Net(
             2,
             config.hidden_dim,
-            config.latent_dim,
+            2,
             config.n_layers,
             config.dropout
         )
@@ -23,19 +22,35 @@ class Encoder(nn.Module):
     
     def forward(self, s):
         return self.net(s[...,:2])
+
+
+class Decoder(nn.Module):
+    def __init__(self, config=configs.DefaultDecoder):
+        super().__init__()
+        self.config = config
+
+        self.net = model_utils.Net(
+            2,
+            config.hidden_dim,
+            2,
+            config.n_layers,
+            config.dropout
+        )
+
     
+    def forward(self, s):
+        return self.net(s[...,:2])
+
 
 class Basis(nn.Module):
     def __init__(self, config=configs.DefaultBasis):
         super().__init__()
         self.config = config
 
-        base = torch.zeros(config.n_skills, config.latent_dim)
+        base = torch.zeros(config.n_skills, config.n_skills)
         for i in range(self.config.n_skills):
             base[i, i] = 1
         self.basis = nn.Parameter(base)
-                       
-        self.log_sigma = nn.Parameter(torch.ones([1]))
 
 
     def forward(self, batch_size=None):
@@ -45,10 +60,7 @@ class Basis(nn.Module):
         basis = self.basis.unsqueeze(0)
         basis = basis.expand(batch_size, -1, -1)
 
-        log_sigma = self.log_sigma.unsqueeze(0)
-        log_sigma = log_sigma.expand(basis.shape[:-1])
-
-        return basis, 2*torch.sigmoid(log_sigma)
+        return basis
     
 
 class Policy(nn.Module):
@@ -68,7 +80,6 @@ class Policy(nn.Module):
     def forward(self, s, z):
 
         inp = torch.cat([s, z], dim=-1)
-
         out = self.net(inp)
 
         dist = None
@@ -79,6 +90,7 @@ class Policy(nn.Module):
             mus = torch.tanh(out[..., :self.config.action_dim])
             log_sigmas = out[..., self.config.action_dim:]
             dist = torch.distributions.Normal(mus, torch.sigmoid(log_sigmas))
+        
         return dist
     
 
@@ -98,7 +110,7 @@ class Baseline(nn.Module):
     
     def forward(self, s, z):
         inp = torch.cat([s, z], dim=-1)
-        return self.net(inp)
+        return self.net(inp) / 10
 
 
 class Manager(nn.Module):

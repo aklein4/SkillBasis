@@ -5,18 +5,19 @@ from replay_buffer import ReplayBuffer
 from utils import DEVICE, np2torch, torch2np
 
 
+BIAS_SIGMA = 0.1
+
+
 class SkillGenerator():
-    def __init__(self, n_skills, sigma):
-        self.dist = torch.distributions.Uniform(
-            torch.full([n_skills], -sigma, device=DEVICE).float(),
-            torch.full([n_skills], sigma, device=DEVICE).float()
-        )
+    def __init__(self, n_skills):
+        # samples from uniform distribution in [-1, 1]
+        self.probs = torch.ones([n_skills], device=DEVICE) * 0.5
 
     def sample(self):
-        return self.dist.sample()
+        return (torch.bernoulli(self.probs) * 2) - 1
     
     def log_prob(self, z):
-        return self.dist.log_prob(z)
+        return torch.log(torch.full_like(z, 0.5))
 
 
 class Environment():
@@ -52,19 +53,17 @@ class Environment():
                 s = np2torch(self.env.reset()).float()
                 seed = s
 
+                bias = None
                 z = skill
                 if skill is None:
                     z = self.skill_generator.sample()
+                    bias = torch.randn([self.pi_model.config.action_dim], device=DEVICE) * BIAS_SIGMA
 
                 while True:
                     self.env.render()
 
-                    # z = self.skill_generator.sample()
-
                     pi = self.pi_model(s, z)
                     a = pi.sample()
-                    # if not self.pi_model.config.discrete:
-                    #     a = torch.clamp(a, self.pi_model.config.action_min, self.pi_model.config.action_max)
 
                     if greedy:
                         if self.pi_model.config.discrete:

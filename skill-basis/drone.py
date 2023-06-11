@@ -11,9 +11,8 @@ CANVAS_SIZE = 500
 
 DELTA_T = 0.1
 FORCE = 5
-DRAG = 0.01
+TORQUE = 0.5
 
-MAX_ROT = np.pi / 4
 MAX_SPEED = 5.0
 
 BOUND = 20.0
@@ -44,7 +43,6 @@ class Drone:
         self.vel = None
         
         self.ang = None
-        self.ang_vel = None
 
         self.unit = CANVAS_SIZE / (BOUND * 2)
         self.canvas = None
@@ -96,13 +94,11 @@ class Drone:
             self.pos = np.random.uniform(-BOUND, BOUND, 2)
             self.speed = np.zeros(1)
             self.ang = np.random.uniform(-np.pi, np.pi, 1)
-            self.ang_vel = np.zeros(1)
 
         else:
             self.pos = np.array([0, 0])
             self.speed = np.zeros(1)
             self.ang = np.zeros(1)
-            self.ang_vel = np.zeros(1)
 
         return self.getState()
     
@@ -110,16 +106,13 @@ class Drone:
     def getState(self):
         dir = np.array([np.cos(self.ang), np.sin(self.ang)])[:, 0]
         state = np.concatenate([
-            self.pos, dir, self.speed, self.ang_vel
+            self.pos / BOUND, dir, self.speed / MAX_SPEED
         ], axis=0)
     
         return state
     
     
     def checkCollision(self, p):
-        if p[0] < -BOUND or p[0] > BOUND or p[1] < -BOUND or p[1] > BOUND:
-            return True
-        
         if self.boxes is None:
             return False   
         
@@ -137,25 +130,22 @@ class Drone:
         if self.discrete:
             action = DISCRETE_ACTIONS[action]
 
-        # apply drag
-        action[0] -= DRAG * (self.speed + self.ang_vel)
-        action[1] -= DRAG * (self.speed - self.ang_vel)
-
         # apply acceleration        
-        self.ang_vel += (action[0] - action[1]) * DELTA_T * FORCE
-        self.speed += (action[0] + action[1]) * DELTA_T * FORCE
+        self.speed += action[0] * DELTA_T * FORCE
 
         # clip speed
-        self.ang_vel = np.clip(self.ang_vel, -MAX_ROT, MAX_ROT)
         self.speed = np.clip(self.speed, -MAX_SPEED, MAX_SPEED)
 
         # apply velocity
-        self.ang += self.ang_vel * DELTA_T
+        self.ang += action[1] * DELTA_T * TORQUE
         old_pos = self.pos.copy()
         self.pos = self.pos + np.array([
             np.cos(self.ang) * self.speed * DELTA_T,
             np.sin(self.ang) * self.speed * DELTA_T
         ]).squeeze(-1)
+
+        # clip position
+        self.pos = np.clip(self.pos, -BOUND+0.01, BOUND-0.01)
 
         # apply walls
         if self.checkCollision(self.pos):
@@ -166,11 +156,14 @@ class Drone:
         if self.t >= self.max_t:
             return self.reset(), 0, True, None
 
+        # get reward for moving closer
         reward = -(np.linalg.norm(self.pos - self.target) - np.linalg.norm(old_pos - self.target))
 
+        # check if at target
         if np.linalg.norm(self.pos - self.target) < 1:
             return self.reset(), reward, True, None
 
+        # regular step
         return self.getState(), reward, False, None
 
 

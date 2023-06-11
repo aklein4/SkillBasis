@@ -10,6 +10,7 @@ class Logger:
     def __init__(self,
             pi_model,
             encoder_model,
+            decoder_model,
             basis_model,
             baseline_model,
             log_loc,
@@ -18,14 +19,15 @@ class Logger:
 
         self.pi_model = pi_model
         self.encoder_model = encoder_model
+        self.decoder_model = decoder_model
         self.basis_model = basis_model
         self.baseline_model = baseline_model
 
         # metrics to track
-        self.losses = []
+        self.informations = []
         self.baseline_losses = []
-        self.sigmas = []
         self.norms = []
+        self.entropies = []
 
         # save location
         self.log_loc = log_loc
@@ -37,31 +39,31 @@ class Logger:
         # initialize metric csv
         with open(os.path.join(self.log_loc, "metrics.csv"), 'w') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-            spamwriter.writerow(["epoch"]  + ["loss", "baseline_loss", "sigma", "norm"])
+            spamwriter.writerow(["epoch"]  + ["information", "baseline_loss", "norm", "entropy"])
 
 
     def write(self):
         with open(os.path.join(self.log_loc, "metrics.csv"), 'a') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-            spamwriter.writerow([len(self.losses)-1] + [self.losses[-1], self.baseline_losses[-1], self.sigmas[-1]])
+            spamwriter.writerow([len(self.informations)-1] + [self.informations[-1], self.baseline_losses[-1], self.norms[-1], self.entropies[-1]])
 
 
     def plot(self):
 
         fig, ax = plt.subplots(2, 2)
         
-        ax[0, 0].plot(self.losses)
-        ax[0, 0].set_title("Transition-Skill Mutual Information")
+        ax[0, 0].plot(self.informations)
+        ax[0, 0].set_title("Skill-Transition Mutual Information")
         
         ax[0, 1].plot(self.baseline_losses)
         ax[0, 1].set_title("Baseline MSE Loss")
 
-        ax[1, 0].plot(self.sigmas)
-        ax[1, 0].set_title("Discriminator Variance")
+        ax[1, 0].plot(self.norms)
+        ax[1, 0].set_title("Latent Skill Cosine Similarity")
         ax[1, 0].set_xlabel("Iteration (8 episodes per)")
         
-        ax[1, 1].plot(self.norms)
-        ax[1, 1].set_title("Latent Skill Cosine Similarity")
+        ax[1, 1].plot(self.entropies)
+        ax[1, 1].set_title("Policy Entropy")
 
         fig.tight_layout()
         fig.set_size_inches(10, 7)
@@ -69,21 +71,19 @@ class Logger:
         plt.close(fig)
 
 
-    def log(self, loss, baseline_loss):
+    def log(self, information, baseline_loss, entrop, adv):
 
         # save metrics
-        self.losses.append(loss)
+        self.informations.append(information)
         self.baseline_losses.append(baseline_loss)
+        self.entropies.append(entrop)
 
-        self.sigmas.append(torch.mean(2*torch.sigmoid(self.basis_model.log_sigma)).item())
-        
-        normed_basis = self.basis_model.basis / torch.norm(self.basis_model.basis, dim=-1, keepdim=True)
-        cos_sim = torch.dot(normed_basis[0], normed_basis[1])
-        self.norms.append(cos_sim.item())
+        # extract basis norm
+        self.norms.append(adv)
 
         self.write()
 
-        if (len(self.losses)-1) % self.save_every == 0:
+        if (len(self.informations)-1) % self.save_every == 0:
             self.save()
 
 
@@ -91,5 +91,6 @@ class Logger:
         self.plot()
         torch.save(self.pi_model.state_dict(), os.path.join(self.log_loc, "pi_model.pt"))
         torch.save(self.encoder_model.state_dict(), os.path.join(self.log_loc, "encoder_model.pt"))
+        torch.save(self.decoder_model.state_dict(), os.path.join(self.log_loc, "decoder_model.pt"))
         torch.save(self.basis_model.state_dict(), os.path.join(self.log_loc, "basis_model.pt"))
         torch.save(self.baseline_model.state_dict(), os.path.join(self.log_loc, "baseline_model.pt"))
