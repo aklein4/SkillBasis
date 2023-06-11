@@ -30,7 +30,6 @@ class Trainer:
             env,
             pi_model,
             encoder_model,
-            decoder_model,
             basis_model,
             baseline_model,
             logger=None
@@ -40,7 +39,6 @@ class Trainer:
 
         self.pi_model = pi_model
         self.encoder_model = encoder_model
-        self.decoder_model = decoder_model
         self.basis_model = basis_model
         self.baseline_model = baseline_model
 
@@ -66,9 +64,7 @@ class Trainer:
     def _loss(self, batch):
 
         # get state encodings
-        l, sigmas = self.encoder_model(batch.states)
-        l_next, _ = self.encoder_model(batch.next_states)
-        delta_l = l_next
+        delta_l = self.encoder_model(batch.states, batch.next_states)
 
         # get skills basis
         L = self.basis_model(len(batch))
@@ -77,7 +73,8 @@ class Trainer:
         L = L / torch.norm(L, p=2, dim=-1, keepdim=True).detach()
 
         # project the transition into the skill space
-        proj = torch.bmm(L, delta_l.unsqueeze(-1)).squeeze(-1)
+        # proj = torch.bmm(L, delta_l.unsqueeze(-1)).squeeze(-1)
+        proj = 100*(batch.next_states[..., :2] - batch.states[..., :2])
 
         # apply the logmoid function to move the projection into the range (-inf, 0]
         logmoid = torch.log(torch.sigmoid(proj * batch.skills))
@@ -90,8 +87,6 @@ class Trainer:
 
         # calculate the mutual information
         mutual_info = -z_log_prior - (-z_log_prob)
-
-        print(mutual_info)
 
         # z_loss minimizes the negative mutual information
         z_loss = -torch.mean(mutual_info)
@@ -116,7 +111,7 @@ class Trainer:
 
         # use baseline
         baseline_loss = F.mse_loss(V, value)
-        advantage = value.unsqueeze(-1)
+        advantage = (value - V).unsqueeze(-1).detach()
 
         # get importance sampling ratio
         probs = torch.exp(log_probs)
@@ -160,7 +155,6 @@ class Trainer:
         # initialize optimizers
         pi_opt = torch.optim.AdamW(self.pi_model.parameters(), lr=lr)
         enc_opt = torch.optim.AdamW(self.encoder_model.parameters(), lr=lr)
-        dec_opt = torch.optim.AdamW(self.decoder_model.parameters(), lr=lr)
         basis_opt = torch.optim.AdamW(self.basis_model.parameters(), lr=lr)
         baseline_opt = torch.optim.AdamW(self.baseline_model.parameters(), lr=lr*BASELINE_LR_COEF)
 
@@ -174,7 +168,6 @@ class Trainer:
             # set model modes
             self.pi_model.train()
             self.encoder_model.train()
-            self.decoder_model.train()
             self.basis_model.train()
             self.baseline_model.train()
             self.target_model.eval()
@@ -205,7 +198,6 @@ class Trainer:
 
                     pi_opt.step()
                     enc_opt.step()
-                    dec_opt.step()
                     basis_opt.step()
                     baseline_opt.step()
 

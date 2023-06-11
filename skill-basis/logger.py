@@ -10,7 +10,6 @@ class Logger:
     def __init__(self,
             pi_model,
             encoder_model,
-            decoder_model,
             basis_model,
             baseline_model,
             log_loc,
@@ -19,7 +18,6 @@ class Logger:
 
         self.pi_model = pi_model
         self.encoder_model = encoder_model
-        self.decoder_model = decoder_model
         self.basis_model = basis_model
         self.baseline_model = baseline_model
 
@@ -91,6 +89,5 @@ class Logger:
         self.plot()
         torch.save(self.pi_model.state_dict(), os.path.join(self.log_loc, "pi_model.pt"))
         torch.save(self.encoder_model.state_dict(), os.path.join(self.log_loc, "encoder_model.pt"))
-        torch.save(self.decoder_model.state_dict(), os.path.join(self.log_loc, "decoder_model.pt"))
         torch.save(self.basis_model.state_dict(), os.path.join(self.log_loc, "basis_model.pt"))
         torch.save(self.baseline_model.state_dict(), os.path.join(self.log_loc, "baseline_model.pt"))

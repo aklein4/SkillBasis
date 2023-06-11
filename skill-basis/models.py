@@ -6,13 +6,14 @@ from torch.nn import functional as F
 import configs
 import model_utils
 
+
 class Encoder(nn.Module):
     def __init__(self, config=configs.DefaultEncoder):
         super().__init__()
         self.config = config
 
         self.net = model_utils.Net(
-            2,
+            4,
             config.hidden_dim,
             2,
             config.n_layers,
@@ -20,26 +21,8 @@ class Encoder(nn.Module):
         )
 
     
-    def forward(self, s):
-        return self.net(s[...,:2])
-
-
-class Decoder(nn.Module):
-    def __init__(self, config=configs.DefaultDecoder):
-        super().__init__()
-        self.config = config
-
-        self.net = model_utils.Net(
-            2,
-            config.hidden_dim,
-            2,
-            config.n_layers,
-            config.dropout
-        )
-
-    
-    def forward(self, s):
-        return self.net(s[...,:2])
+    def forward(self, s, s_next):
+        return self.net(torch.cat([s[...,:2], s_next[...,:2]], dim=-1))
 
 
 class Basis(nn.Module):
@@ -110,7 +93,7 @@ class Baseline(nn.Module):
     
     def forward(self, s, z):
         inp = torch.cat([s, z], dim=-1)
-        return self.net(inp) / 10
+        return self.net(inp)
 
 
 class Manager(nn.Module):

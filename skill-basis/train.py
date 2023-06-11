@@ -2,19 +2,19 @@
 import torch
 
 from environment import Environment, SkillGenerator
-from models import Policy, Encoder, Decoder, Basis, Baseline
+from models import Policy, Encoder, Basis, Baseline
 from trainer import Trainer
 from logger import Logger
 from drone import Drone
 import utils
 
 # result directory
-OUTPUT_DIR = 'run2'
-SAVE_EVERY = 16
+OUTPUT_DIR = 'test'
+SAVE_EVERY = 4
 
 # training parameters
 NUM_ITERS = 2048*2 # number of training iterations
-UPDATE_EVERY = 4
+UPDATE_EVERY = 32
 
 EPISODES_PER_ITER = 8 # episodes sampled per iteration
 EPOCHS_PER_ITER = 1 # epochs trained per iteration
@@ -22,7 +22,7 @@ EPOCHS_PER_ITER = 1 # epochs trained per iteration
 LR = 1e-4 # learning rate
 BATCH_SIZE = 16 # batch size
 
-DISCOUNT = 0.75
+DISCOUNT = 0.9
 
 REWARD_SMOOTHING = 0.9 # reward logging momentum
 
@@ -38,10 +38,6 @@ def main():
     encoder_model = encoder_model.to(utils.DEVICE)
     # encoder_model.load_state_dict(torch.load('test/encoder_model.pt', map_location='cpu'))
 
-    decoder_model = Decoder()
-    decoder_model = decoder_model.to(utils.DEVICE)
-    # decoder_model.load_state_dict(torch.load('test/decoder_model.pt', map_location='cpu'))
-
     basis_model = Basis()
     basis_model = basis_model.to(utils.DEVICE)
     # basis_model.load_state_dict(torch.load('test/basis_model.pt', map_location='cpu'))
@@ -50,13 +46,13 @@ def main():
     baseline_model = baseline_model.to(utils.DEVICE)
     # baseline_model.load_state_dict(torch.load('test/baseline_model.pt', map_location='cpu'))
 
-    logger = Logger(pi_model, encoder_model, decoder_model, basis_model, baseline_model, OUTPUT_DIR, SAVE_EVERY)
+    logger = Logger(pi_model, encoder_model, basis_model, baseline_model, OUTPUT_DIR, SAVE_EVERY)
 
-    rocket = Drone(discrete=False, render=False)
+    rocket = Drone(discrete=True, render=False)
     skill_gen = SkillGenerator(pi_model.config.n_skills)
     env = Environment(rocket, pi_model, skill_gen)
 
-    trainer = Trainer(env, pi_model, encoder_model, decoder_model, basis_model, baseline_model, logger)
+    trainer = Trainer(env, pi_model, encoder_model, basis_model, baseline_model, logger)
 
     # train trial
     trainer.train(

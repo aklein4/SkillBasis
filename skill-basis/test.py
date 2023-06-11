@@ -12,7 +12,7 @@ import os
 import matplotlib.pyplot as plt
 
 
-LOAD_DIR = 'run2'
+LOAD_DIR = 'test'
 OUT_DIR = "figs"
 
 def main():
@@ -26,28 +26,28 @@ def main():
     basis_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "basis_model.pt"), map_location='cpu'))
     basis_model = basis_model.to(utils.DEVICE)
 
-    grid = torch.zeros(20, 20, 2)
-    for i in range(-10, 10):
-        for j in range(-10, 10):
-            enc, _ = encoder_model(torch.tensor([i, j] + [0]*(encoder_model.config.state_dim-2)).float().to(utils.DEVICE))
-            vals = (basis_model() @ enc.unsqueeze(-1)).squeeze(-1)
+    # grid = torch.zeros(20, 20, 2)
+    # for i in range(-10, 10):
+    #     for j in range(-10, 10):
+    #         enc = encoder_model(torch.tensor([i, j] + [0]*(encoder_model.config.state_dim-2)).float().to(utils.DEVICE))
+    #         vals = (basis_model() @ enc.unsqueeze(-1)).squeeze(-1)
 
-            grid[i+10, j+10] = vals[:2]
+    #         grid[i+10, j+10] = vals[:2]
 
-    grid -= torch.min(grid)
-    grid /= torch.max(grid)
+    # grid -= torch.min(grid)
+    # grid /= torch.max(grid)
 
-    grid = torch.cat([grid[:, :, :1], grid], dim=-1)
+    # grid = torch.cat([grid[:, :, :1], grid], dim=-1)
 
-    plt.imshow(utils.torch2np(grid))
-    plt.show()
-    plt.clf()
+    # plt.imshow(utils.torch2np(grid))
+    # plt.show()
+    # plt.clf()
 
     pi_model = Policy()
     pi_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "pi_model.pt"), map_location='cpu'))
     pi_model = pi_model.to(utils.DEVICE)
 
-    rocket = Drone(discrete=False, render=True)
+    rocket = Drone(discrete=True, render=True)
     env = Environment(rocket, pi_model)
 
     while True:
@@ -63,13 +63,10 @@ def main():
         
         batch = env.sample(1, skill=skill, greedy=False)
 
-        l, _ = encoder_model(batch.states)
-        l_next, _ = encoder_model(batch.next_states)
-        delta_l = (l_next - l).detach()
+        delta_l = encoder_model(batch.states[:, :2], batch.next_states[:, :2])
 
-        for i in range(2, len(batch)):
-            delta_l[-i] += 0.9*delta_l[-i+1]
-
+        #for i in range(2, len(batch)):
+        #    delta_l[-i] += 0.9*delta_l[-i+1]
 
         L = basis_model(len(batch))
         L = L / torch.norm(L, p=2, dim=-1, keepdim=True)

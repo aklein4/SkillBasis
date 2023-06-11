@@ -14,7 +14,7 @@ class Config(dict):
 DefaultConfig = Config(
 
     state_dim = 5,
-    action_dim = 2,
+    action_dim = 9,
 
     n_skills = 2,
 
@@ -31,11 +31,6 @@ DefaultEncoder = Config(
 DefaultEncoder.inherit(DefaultConfig)
 
 
-DefaultDecoder = Config(
-)
-DefaultDecoder.inherit(DefaultConfig)
-
-
 DefaultBasis = Config(
 )
 DefaultBasis.inherit(DefaultConfig)
@@ -48,7 +43,7 @@ DefaultBaseline.inherit(DefaultConfig)
 
 DefaultPolicy = Config(
 
-    discrete = False
+    discrete = True
 
 )
 DefaultPolicy.inherit(DefaultConfig)
