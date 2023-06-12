@@ -78,7 +78,6 @@ class Logger:
 
         # extract basis norm
         bas = self.basis_model()
-        print(bas)
         self.norms.append(torch.dot(bas[0], bas[1]).item())
 
         self.write()

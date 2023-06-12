@@ -2,22 +2,25 @@
 import torch
 
 from replay_buffer import ReplayBuffer
-from utils import DEVICE, np2torch, torch2np
-
-
-BIAS_SIGMA = 0.1
+import utils
 
 
 class SkillGenerator():
     def __init__(self, n_skills):
-        # samples from uniform distribution in [-1, 1]
-        self.probs = torch.ones([n_skills], device=DEVICE) * 0.5
+        # for bernoulli distribution with p = 0.5
+        self.probs = torch.ones([n_skills], device=utils.DEVICE) * 0.5
+        # tensor to fill for skill attentions
+        self.attn = torch.zeros_like(self.probs)
 
     def sample(self):
-        return (torch.bernoulli(self.probs) * 2) - 1
-    
-    def log_prob(self, z):
-        return torch.log(torch.full_like(z, 0.5))
+        # vals in {-1, 1}
+        vals = (2 * torch.bernoulli(self.probs)) - 1
+        # attns samples from L1 normed exponential distribution
+        self.attn.exponential_()
+        return vals, self.attn.detach() / self.attn.sum()
+
+    def log_prob(self, batch_size):
+        return torch.log(torch.ones([batch_size], device=utils.DEVICE) * 0.5)
 
 
 class Environment():
@@ -43,26 +46,27 @@ class Environment():
         next_states = []
         actions = []
         og_probs = []
-        skills = []
+        z_vals = []
+        z_attns = []
 
         # nograd for inference
         with torch.no_grad():
             for _ in range(n_episodes):
 
                 # reset environment
-                s = np2torch(self.env.reset()).float()
+                s = utils.np2torch(self.env.reset()).float()
                 seed = s
 
-                bias = None
-                z = skill
+                z_val, z_attn = None, None
                 if skill is None:
-                    z = self.skill_generator.sample()
-                    bias = torch.randn([self.pi_model.config.action_dim], device=DEVICE) * BIAS_SIGMA
+                    z_val, z_attn = self.skill_generator.sample()
+                else:
+                    z_val, z_attn = skill
 
                 while True:
                     self.env.render()
 
-                    pi = self.pi_model(s, z)
+                    pi = self.pi_model(s, z_val, z_attn)
                     a = pi.sample()
 
                     if greedy:
@@ -74,8 +78,8 @@ class Environment():
                     og_prob = torch.exp(pi.log_prob(a))
 
                     # step environment
-                    new_s, r, done, info = self.env.step(torch2np(a))
-                    new_s = np2torch(new_s).float()
+                    new_s, r, done, info = self.env.step(utils.torch2np(a))
+                    new_s = utils.np2torch(new_s).float()
 
                     # another step or end
                     if done:
@@ -87,7 +91,8 @@ class Environment():
                         next_states.append(new_s)
                         actions.append(a)
                         og_probs.append(og_prob)
-                        skills.append(z)
+                        z_vals.append(z_val)
+                        z_attns.append(z_attn)
                         
                         s = new_s
 
@@ -97,6 +102,7 @@ class Environment():
             next_states,
             actions,
             og_probs,
-            skills
+            z_vals,
+            z_attns
         )
         

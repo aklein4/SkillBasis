@@ -13,16 +13,16 @@ class Encoder(nn.Module):
         self.config = config
 
         self.net = model_utils.Net(
-            4,
+            config.obs_dim * 2,
             config.hidden_dim,
-            2,
+            config.latent_dim,
             config.n_layers,
             config.dropout
         )
 
     
     def forward(self, s, s_next):
-        return self.net(torch.cat([s[...,:2], s_next[...,:2]], dim=-1))
+        return self.net(torch.cat([s[...,:self.config.obs_dim], s_next[...,:self.config.obs_dim]], dim=-1))
 
 
 class Basis(nn.Module):
@@ -30,9 +30,14 @@ class Basis(nn.Module):
         super().__init__()
         self.config = config
 
-        base = torch.zeros(config.n_skills, config.n_skills)
+        base = torch.zeros(config.n_skills, config.latent_dim)
         for i in range(self.config.n_skills):
-            base[i, i] = 1
+            if i < config.latent_dim:
+                base[i, i] = 1
+            else:
+                # rotationally symmetric sample
+                v = torch.randn(config.latent_dim)
+                base[i] = v / torch.norm(v, p=2)
         self.basis = nn.Parameter(base)
 
 
@@ -43,7 +48,9 @@ class Basis(nn.Module):
         basis = self.basis.unsqueeze(0)
         basis = basis.expand(batch_size, -1, -1)
 
-        return basis
+        norm = torch.norm(basis, p=2, dim=-1, keepdim=True)
+
+        return basis / norm, torch.mean(norm)
     
 
 class Policy(nn.Module):
@@ -60,9 +67,9 @@ class Policy(nn.Module):
         )
 
     
-    def forward(self, s, z):
+    def forward(self, s, z_val, z_attn):
 
-        inp = torch.cat([s, z], dim=-1)
+        inp = torch.cat([s, z_val * z_attn], dim=-1)
         out = self.net(inp)
 
         dist = None
@@ -91,43 +98,7 @@ class Baseline(nn.Module):
         )
 
     
-    def forward(self, s, z):
-        inp = torch.cat([s, z], dim=-1)
+    def forward(self, s, z_val, z_attn):
+        inp = torch.cat([s, z_val * z_attn], dim=-1)
         return self.net(inp)
 
-
-class Manager(nn.Module):
-    def __init__(self, config=configs.DefaultManager):
-        super().__init__()
-        self.config = config
-
-        self.net = model_utils.Net(
-            2,
-            config.hidden_dim,
-            config.n_skills,
-            config.n_layers,
-            config.dropout
-        )
-    
-    
-    def forward(self, s):
-        logs = self.net(s)
-        return torch.distributions.Categorical(logits=logs)
-    
-
-class ManagerBaseline(nn.Module):
-    def __init__(self, config=configs.DefaultManagerBaseline):
-        super().__init__()
-        self.config = config
-
-        self.net = model_utils.Net(
-            2,
-            config.hidden_dim,
-            1,
-            config.n_layers,
-            config.dropout
-        )
-
-    
-    def forward(self, s, z):
-        return self.net(s)

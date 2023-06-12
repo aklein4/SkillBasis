@@ -13,20 +13,24 @@ class Config(dict):
 
 DefaultConfig = Config(
 
+    # env params
     state_dim = 5,
     action_dim = 9,
 
+    # skill params
     n_skills = 2,
+    latent_dim = 4,
 
+    # model params
     hidden_dim = 32,
     n_layers = 2,
-
     dropout = 0.1
 
 )
 
 
 DefaultEncoder = Config(
+    obs_dim = 2
 )
 DefaultEncoder.inherit(DefaultConfig)
 
@@ -42,18 +46,7 @@ DefaultBaseline.inherit(DefaultConfig)
 
 
 DefaultPolicy = Config(
-
     discrete = True
-
 )
 DefaultPolicy.inherit(DefaultConfig)
 
-
-DefaultManager = Config(
-)
-DefaultManager.inherit(DefaultConfig)
-
-
-DefaultManagerBaseline = Config(
-)
-DefaultManagerBaseline.inherit(DefaultConfig)

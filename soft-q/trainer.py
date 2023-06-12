@@ -7,21 +7,14 @@ import utils
 from models import Baseline
 
 from tqdm import tqdm
-import random
 
 
-BASELINE_LR_COEF = 1
-
-REG_KL = 0.1
-REG_DIFF = 1e-2
-REG_ENC = 1
+BASELINE_LR_COEF = 1e-1
 
 REG_L2 = 1e-3
+REG_ENTROPY = 10
 
-REG_ENTROPY = 0.1
-
-REWARD_SCALE = 1e2
-
+REWARD_SCALE = 10
 PPO_CLIP = 0.2
 
 
@@ -47,8 +40,11 @@ class Trainer:
         # hyperparameters set in train call
         self.smoothing = None
         self.discount = None
+        self.alpha_entropy = None
 
+        # target model for baseline
         self.target_model = Baseline().to(utils.DEVICE)
+        self._update_target()
 
     
     def _update_target(self):
@@ -61,52 +57,65 @@ class Trainer:
         return self.smoothing * accum + (1 - self.smoothing) * next
     
 
-    def _loss(self, batch):
-
+    def _get_z_log_prob(self, batch, L_norm_too=False):
         # get state encodings
         delta_l = self.encoder_model(batch.states, batch.next_states)
 
         # get skills basis
-        L = self.basis_model(len(batch))
-        # normalize basis
-        L_reg = torch.mean( torch.abs(1 - torch.norm(L, p=2, dim=-1) ) )
-        L = L / torch.norm(L, p=2, dim=-1, keepdim=True).detach()
+        L, L_norm = self.basis_model(len(batch))
 
         # project the transition into the skill space
-        # proj = torch.bmm(L, delta_l.unsqueeze(-1)).squeeze(-1)
-        proj = 100*(batch.next_states[..., :2] - batch.states[..., :2])
+        proj = torch.bmm(L, delta_l.unsqueeze(-1)).squeeze(-1)
 
-        # apply the logmoid function to move the projection into the range (-inf, 0]
-        logmoid = torch.log(torch.sigmoid(proj * batch.skills))
+        # get log_probs of each skill
+        logmoid = torch.log(torch.sigmoid(batch.z_vals * proj))
 
-        # multiply the logmoid by the skills to get the log probabilities
-        z_log_prob = torch.sum(logmoid, dim=-1)
+        # weighted sum the logmoids to get total log probability
+        z_log_prob = torch.sum(batch.z_attns * logmoid, dim=-1)
 
-        # get the prior log probabilities
-        z_log_prior = torch.sum(self.env.skill_generator.log_prob(batch.skills), dim=-1)
+        if L_norm_too:
+            return z_log_prob, L_norm
+        return z_log_prob
 
-        # calculate the mutual information
-        mutual_info = -z_log_prior - (-z_log_prob)
 
-        # z_loss minimizes the negative mutual information
-        z_loss = -torch.mean(mutual_info)
+    def _skill_loss(self, batch):
+
+        # get log probabilities of each skill
+        z_log_prob, L_norm = self._get_z_log_prob(batch, True)
+
+        # want to maximize the log probability of the skills
+        z_loss = -torch.mean(z_log_prob)
+
+        # add L2 regularization to the basis
+        norm_loss = REG_L2 * L_norm
+
+        return z_loss + norm_loss
+
+
+    def _pi_loss(self, batch):
+
+        """ Training """
+
+        # weighted sum the logmoids to get total log probability
+        z_log_prob = self._get_z_log_prob(batch).detach()
 
         # get the policy
-        pi = self.pi_model(batch.states, batch.skills)
-        log_probs = pi.log_prob(batch.actions)
+        pi = self.pi_model(batch.states, batch.z_vals, batch.z_attns)
+        pi_log_probs = pi.log_prob(batch.actions)
 
-        # get the action entropy
-        pi_entropy = torch.sum(log_probs, dim=-1)
+        # get the entropy of the next state
+        pi_next = self.pi_model(batch.next_states, batch.z_vals, batch.z_attns)
+        pi_entropy_next = pi_next.entropy().detach()
 
-        # get the reward with entropy penalty
-        reward = mutual_info.detach()
-        # reduce reward bias
-        reward = reward - (-z_log_prior)
-        reward = reward.detach()
+        # get the reward
+        reward = z_log_prob + self.alpha_entropy * pi_entropy_next
+        reward -= torch.log(torch.ones_like(z_log_prob) * 0.5)
+        reward -= self.alpha_entropy * torch.mean(pi_entropy_next).item()
+        reward = REWARD_SCALE * reward.detach()
 
         # get baselines
-        V = self.baseline_model(batch.states, batch.skills).squeeze(-1)
-        V_next = self.target_model(batch.next_states, batch.skills).squeeze(-1).detach()
+        V = self.baseline_model(batch.states, batch.z_vals, batch.z_attns).squeeze(-1)
+        V_next = self.target_model(batch.next_states, batch.z_vals, batch.z_attns).squeeze(-1).detach()
         value = reward + self.discount * V_next
 
         # use baseline
@@ -114,8 +123,8 @@ class Trainer:
         advantage = (value - V).unsqueeze(-1).detach()
 
         # get importance sampling ratio
-        probs = torch.exp(log_probs)
-        ratio = probs / batch.og_probs
+        pi_probs = torch.exp(pi_log_probs)
+        ratio = pi_probs / batch.og_probs
 
         # get pi loss
         pi_loss = -torch.mean(
@@ -128,29 +137,43 @@ class Trainer:
             )
         )
 
+        """ Logging """
+
+        # calculate the mutual information
+        z_log_prior = self.env.skill_generator.log_prob(len(batch))
+        mutual_info = z_log_prob - z_log_prior
+
+        # get logging metrics
+        logging_mutual_info = torch.sum(mutual_info).item()
+        logging_baseline_loss = len(batch)*baseline_loss.item()
+        logging_entropy = torch.sum(pi_entropy_next).item()
+
         # get total loss
-        return pi_loss + z_loss + baseline_loss + REG_L2*L_reg, torch.sum(mutual_info).item(), len(batch)*baseline_loss.item(), torch.sum(pi_entropy).item(), torch.mean(torch.abs(advantage)).item()
+        return pi_loss + baseline_loss, logging_mutual_info, logging_baseline_loss, logging_entropy
 
 
     def train(self,
-            num_iters,
+            n_iters,
             update_every,
-            episodes_per_iter,
-            epochs_per_iter,
+            n_episodes,
+            z_epochs,
+            pi_epochs,
             lr,
             batch_size,
             discount,
+            alpha_entropy,
             smoothing
         ):
+
+        # set hyperparameters
         self.smoothing = smoothing
         self.discount = discount
-        self._update_target()
+        self.alpha_entropy = alpha_entropy
 
         # things that are tracked for logging
-        logging_mutual = None
-        logging_baseline_loss = None
-        logging_entropy = None
-        logging_advantage = None
+        rolling_mutual = None
+        rolling_baseline_loss = None
+        rolling_entropy = None
 
         # initialize optimizers
         pi_opt = torch.optim.AdamW(self.pi_model.parameters(), lr=lr)
@@ -159,70 +182,84 @@ class Trainer:
         baseline_opt = torch.optim.AdamW(self.baseline_model.parameters(), lr=lr*BASELINE_LR_COEF)
 
         # run for iterations
-        pbar = tqdm(range(num_iters), desc='Training', leave=True)
+        pbar = tqdm(range(n_iters), desc='Training', leave=True)
         for it in pbar:
 
             # get samples
-            buffer = self.env.sample(episodes_per_iter)
+            buffer = self.env.sample(n_episodes)
+
+            """ ----- Train Skills ----- """
 
             # set model modes
-            self.pi_model.train()
             self.encoder_model.train()
             self.basis_model.train()
-            self.baseline_model.train()
-            self.target_model.eval()
-
-            # accumulate logging info
-            this_mutual = 0
-            this_baseline_loss = 0
-            this_entropy = 0
-            this_advantage = 0
 
             # train for epochs
-            for epoch in range(epochs_per_iter):
-
-                # sample vals from buffer
+            for epoch in range(z_epochs):
                 buffer.shuffle()
                 for i in range(0, len(buffer), batch_size):
                     batch = buffer[(i, batch_size)]
 
-                    # training step
-                    pi_opt.zero_grad()
                     enc_opt.zero_grad()
                     basis_opt.zero_grad()
+
+                    loss = self._skill_loss(batch)
+
+                    loss.backward()
+                    enc_opt.step()
+                    basis_opt.step()
+
+            """ ----- Train Policy ----- """
+
+            # set model modes
+            self.pi_model.train()
+            self.encoder_model.train()
+            self.basis_model.eval()
+            self.baseline_model.eval()
+            self.target_model.eval()
+
+            # accumulate logging info
+            mutual_accum = 0
+            baseline_loss_accum = 0
+            entropy_accum = 0
+
+            # train for epochs
+            for epoch in range(pi_epochs):
+                buffer.shuffle()
+                for i in range(0, len(buffer), batch_size):
+                    batch = buffer[(i, batch_size)]
+
+                    pi_opt.zero_grad()
                     baseline_opt.zero_grad()
 
-                    loss, to_mutual_log, to_baseline_log, to_entrop_log, to_advantage_log = self._loss(batch)
+                    loss, mutual, baseline_loss, entropy = self._pi_loss(batch)
 
                     loss.backward()
 
                     pi_opt.step()
-                    enc_opt.step()
-                    basis_opt.step()
                     baseline_opt.step()
 
-                    this_mutual += to_mutual_log
-                    this_baseline_loss += to_baseline_log
-                    this_entropy += to_entrop_log
-                    this_advantage += to_advantage_log
+                    mutual_accum += mutual
+                    baseline_loss_accum += baseline_loss
+                    entropy_accum += entropy
 
             # handle metrics
-            logging_mutual = self._smooth(logging_mutual, this_mutual/len(buffer))
-            logging_baseline_loss = self._smooth(logging_baseline_loss, this_baseline_loss/len(buffer))
-            logging_entropy = self._smooth(logging_entropy, this_entropy/len(buffer))
-            logging_advantage = self._smooth(logging_advantage, this_advantage/len(buffer))
+            rolling_mutual = self._smooth(rolling_mutual, mutual_accum/len(buffer))
+            rolling_baseline_loss = self._smooth(rolling_baseline_loss, baseline_loss_accum/len(buffer))
+            rolling_entropy = self._smooth(rolling_entropy, entropy_accum/len(buffer))
 
             # log things
             if self.logger is not None:
-                self.logger.log(logging_mutual, logging_baseline_loss, logging_entropy, logging_advantage)
+                self.logger.log(rolling_mutual, rolling_baseline_loss, rolling_entropy)
 
+            # update target model
             if it+1 % update_every == 0:
                 self._update_target()
 
             # update progress bar
             pbar.set_postfix({
                 'iter': it,
-                'r': round(logging_mutual, 3),
+                'r': round(rolling_mutual, 3),
             })
         
         # save models

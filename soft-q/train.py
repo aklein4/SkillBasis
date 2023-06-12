@@ -8,43 +8,35 @@ from logger import Logger
 from drone import Drone
 import utils
 
+
 # result directory
 OUTPUT_DIR = 'test'
 SAVE_EVERY = 4
 
 # training parameters
-NUM_ITERS = 2048*2 # number of training iterations
+N_ITERS = 2048*2
 UPDATE_EVERY = 32
 
-EPISODES_PER_ITER = 8 # episodes sampled per iteration
-EPOCHS_PER_ITER = 1 # epochs trained per iteration
+N_EPISODES = 8
+SKILL_EPOCHS = 1
+PI_EPOCHS = 1
 
-LR = 1e-4 # learning rate
-BATCH_SIZE = 16 # batch size
+LR = 1e-4
+BATCH_SIZE = 16
 
-DISCOUNT = 0.9
+DISCOUNT = 0.0
+ALPHA_ENTROPY = 0.1
 
-REWARD_SMOOTHING = 0.9 # reward logging momentum
+SMOOTHING = 0.75
 
 
 def main():
 
     # fresh models
-    pi_model = Policy()
-    pi_model = pi_model.to(utils.DEVICE)
-    # pi_model.load_state_dict(torch.load('test/pi_model.pt', map_location='cpu'))
-
-    encoder_model = Encoder()
-    encoder_model = encoder_model.to(utils.DEVICE)
-    # encoder_model.load_state_dict(torch.load('test/encoder_model.pt', map_location='cpu'))
-
-    basis_model = Basis()
-    basis_model = basis_model.to(utils.DEVICE)
-    # basis_model.load_state_dict(torch.load('test/basis_model.pt', map_location='cpu'))
-
-    baseline_model = Baseline()
-    baseline_model = baseline_model.to(utils.DEVICE)
-    # baseline_model.load_state_dict(torch.load('test/baseline_model.pt', map_location='cpu'))
+    pi_model = Policy().to(utils.DEVICE)
+    encoder_model = Encoder().to(utils.DEVICE)
+    basis_model = Basis().to(utils.DEVICE)
+    baseline_model = Baseline().to(utils.DEVICE)
 
     logger = Logger(pi_model, encoder_model, basis_model, baseline_model, OUTPUT_DIR, SAVE_EVERY)
 
@@ -56,14 +48,16 @@ def main():
 
     # train trial
     trainer.train(
-        NUM_ITERS,
+        N_ITERS,
         UPDATE_EVERY,
-        EPISODES_PER_ITER,
-        EPOCHS_PER_ITER,
+        N_EPISODES,
+        SKILL_EPOCHS,
+        PI_EPOCHS,
         LR,
         BATCH_SIZE,
         DISCOUNT,
-        REWARD_SMOOTHING
+        ALPHA_ENTROPY,
+        SMOOTHING
     )
 
 

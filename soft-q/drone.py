@@ -5,7 +5,7 @@ import tkinter as tk
 import time
 
 
-RANDOM_RESET = True
+RANDOM_RESET = False
 
 CANVAS_SIZE = 500
 
