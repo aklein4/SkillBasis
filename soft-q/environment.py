@@ -17,7 +17,7 @@ class SkillGenerator():
         vals = (2 * torch.bernoulli(self.probs.unsqueeze(0).expand(batch_size, -1))) - 1
         # attns samples from L1 normed exponential distribution
         attn = self.attn.unsqueeze(0).expand(batch_size, -1).clone()
-        attn = torch.ones_like(attn) / attn.shape[-1]
+        attn.exponential_()
         return vals, attn.detach() / attn.sum(dim=-1, keepdim=True)
 
     def log_prob(self, batch_size):

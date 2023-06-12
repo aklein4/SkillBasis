@@ -62,7 +62,9 @@ class Trainer:
         l = self.encoder_model(batch.states).detach()
         l_next = self.encoder_model(batch.next_states)
 
-        delta_l = (l_next - l) * L_SCALE
+        delta_l = l_next * L_SCALE
+        if use_delta:
+            delta_l -= l * L_SCALE
 
         # get skills basis
         L, L_norm = self.basis_model(len(batch))
@@ -84,7 +86,7 @@ class Trainer:
 
 
     def _get_mutual_info(self, batch):
-        z_log_prob = self._get_z_log_prob(batch, use_delta=False)
+        z_log_prob = self._get_z_log_prob(batch)
         z_log_prior = self.env.skill_generator.log_prob(len(batch))
         return z_log_prob - z_log_prior
     
@@ -92,7 +94,7 @@ class Trainer:
     def _skill_loss(self, batch):
 
         # get log probabilities of each skill
-        z_log_prob, L_norm, dist = self._get_z_log_prob(batch, True)
+        z_log_prob, L_norm, dist = self._get_z_log_prob(batch, True, False)
 
         # want to maximize the log probability of the skills
         z_loss = -torch.mean(z_log_prob)

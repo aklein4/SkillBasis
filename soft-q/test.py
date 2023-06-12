@@ -35,26 +35,25 @@ def main():
 
     print(basis_model())
 
-    grid = torch.zeros(20, 20, 2)
-    for i in range(-10, 10):
-        for j in range(-10, 10):
-            enc = encoder_model(torch.tensor([i, j] + [0]*(encoder_model.config.state_dim-2)).float().to(utils.DEVICE))
-            vals = (basis_model() @ enc.unsqueeze(-1)).squeeze(-1)
+    for z in range(8):
 
-            grid[i+10, j+10] = vals[:2]
+        if input("Continue? ") == '':
+            break
 
-    # for i in [0, 1]:
-    #     grid[:, :, i] -= torch.min(grid[:, :, i])
-    #     grid[:, :, i] /= torch.max(grid[:, :, i])
+        grid = torch.zeros(20, 20)
+        for i in range(-10, 10):
+            for j in range(-10, 10):
+                enc = encoder_model(torch.tensor([i, j] + [0]*(encoder_model.config.state_dim-2)).float().to(utils.DEVICE))
+                vals = (basis_model() @ enc.unsqueeze(-1)).squeeze(-1)
 
-    grid -= torch.min(grid)
-    grid /= torch.max(grid)
+                grid[i+10, j+10] = vals[z]
 
-    grid = torch.cat([grid[:, :, :1], grid], dim=-1)
+        grid -= torch.min(grid)
+        grid /= torch.max(grid)
 
-    plt.imshow(utils.torch2np(grid))
-    plt.show()
-    plt.clf()
+        plt.imshow(utils.torch2np(grid))
+        plt.show()
+        plt.clf()
 
     rocket = Drone(discrete=True, render=True)
     env = Environment(rocket, pi_model)
@@ -63,13 +62,18 @@ def main():
 
         skill = None
         while skill is None:
-            skill = input("Enter skill: ")
+            skill = input("Enter Location: ")
             try:
-                skill = [float(i.strip()) for i in skill.split(',')]
-                skill = torch.tensor(skill).float().to(utils.DEVICE).unsqueeze(0)
+                loc = [float(i.strip()) for i in skill.split(',')]
+                loc = torch.tensor(loc).float().to(utils.DEVICE).unsqueeze(0)
             except:
                 continue
         
+        skill = encoder_model(loc)
+        skill /= torch.sum(torch.abs(skill))
+
+        print(skill)
+
         attended = (skill, torch.ones_like(skill))
         batch = env.sample(1, 1, skill=attended, greedy=False)
 

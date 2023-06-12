@@ -19,7 +19,7 @@ DefaultConfig = Config(
 
     # skill params
     n_skills = 2,
-    latent_dim = 4,
+    latent_dim = 2,
 
     # model params
     hidden_dim = 32,
