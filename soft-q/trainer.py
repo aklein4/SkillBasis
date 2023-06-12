@@ -9,10 +9,9 @@ from models import Encoder, Policy
 from tqdm import tqdm
 
 
-SIG_BIAS = -1
-REG_DIST = 0
+REG_DIST = 1
 
-L_SCALE = 10
+L_SCALE = 1
 REWARD_SCALE = 10
 
 CLAM = 1e-3
@@ -67,7 +66,7 @@ class Trainer:
 
         # get log_probs of each skill
         logmoid = torch.log(
-            torch.clamp(torch.sigmoid((batch.z_vals * delta_l) + SIG_BIAS), min=CLAM)
+            torch.clamp(torch.sigmoid(batch.z_vals * delta_l), min=CLAM)
         )
 
         # weighted sum the logmoids to get total log probability
@@ -93,7 +92,7 @@ class Trainer:
         z_loss = -torch.mean(z_log_prob)
 
         # add L2 regularization to the distance between state encodings
-        dist_loss = torch.mean(REG_DIST * dist)
+        dist_loss = torch.mean(REG_DIST * (dist**2))
 
         return z_loss + dist_loss, torch.sum(dist).item()
 
@@ -136,7 +135,6 @@ class Trainer:
             lr,
             batch_size,
             buffer_size,
-            skill_period,
             discount,
             smoothing
         ):
@@ -163,7 +161,7 @@ class Trainer:
         for it in pbar:
 
             # get samples
-            new_buffer, traj_buffer = self.env.sample(n_episodes, batch_size=sample_batch_size, skill_period=skill_period)
+            new_buffer = self.env.sample(n_episodes, batch_size=sample_batch_size)
             if buffer is None:
                 buffer = new_buffer
             else:
@@ -172,7 +170,7 @@ class Trainer:
             # get the reward for the episode
             self.encoder_model.eval()
             self.target_encoder.eval()
-            rolling_mutual = self._smooth(rolling_mutual, torch.sum(self._get_mutual_info(traj_buffer)).item()/len(traj_buffer))
+            rolling_mutual = self._smooth(rolling_mutual, torch.sum(self._get_mutual_info(new_buffer)).item()/len(new_buffer))
 
             """ ----- Train Skills ----- """
 
@@ -185,9 +183,9 @@ class Trainer:
 
             # train for epochs over traj buffer
             for epoch in range(z_epochs):
-                traj_buffer.shuffle()
-                for i in range(0, len(traj_buffer), batch_size):
-                    batch = traj_buffer[(i, batch_size)]
+                new_buffer.shuffle()
+                for i in range(0, len(new_buffer), batch_size):
+                    batch = new_buffer[(i, batch_size)]
 
                     enc_opt.zero_grad()
 
@@ -199,7 +197,7 @@ class Trainer:
                     norm_accum += norm / z_epochs
 
             # handle metrics
-            rolling_norm = self._smooth(rolling_norm, norm_accum/len(traj_buffer))
+            rolling_norm = self._smooth(rolling_norm, norm_accum/len(new_buffer))
 
             """ ----- Train Policy ----- """
 

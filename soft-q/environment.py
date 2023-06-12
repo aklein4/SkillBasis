@@ -33,7 +33,7 @@ class Environment():
 
 
     def sample(self, n_episodes, batch_size=1, skill_period=None, skill=None, greedy=False):
-        assert (skill is not None) ^ (self.skill_generator is not None and skill_period is not None)
+        assert (skill is not None) ^ (self.skill_generator is not None)
 
         # set models modes
         self.pi_model.eval()
@@ -44,12 +44,6 @@ class Environment():
         actions = []
         z_vals = []
         z_attns = []
-
-        # things to collect every skills
-        seed_states = []
-        end_states = []
-        z_vals_traj = []
-        z_attns_traj = []
 
         # nograd for inference
         with torch.no_grad():
@@ -92,37 +86,14 @@ class Environment():
                         z_vals.append(z_val[i])
                         z_attns.append(z_attn[i])
 
-                    for i in range(batch_size):
-                        seed_states.append(seed[i])
-                        end_states.append(new_s[i])
-                        z_vals_traj.append(z_val[i])
-                        z_attns_traj.append(z_attn[i])
-
-                    # if sampling skills, record and sample new
-                    if skill_period is not None and t % skill_period == 0:
-                        z_val, z_attn = self.skill_generator.sample(batch_size)
-                        seed = new_s
-
                     t += 1
                     s = new_s
 
-        # if not sampling skills, only return full buffer
-        full_buffer = ReplayBuffer(
+        return ReplayBuffer(
             states=states,
             next_states=next_states,
             actions=actions,
             z_vals=z_vals,
             z_attns=z_attns
         )
-        if skill_period is None:
-            return full_buffer
-
-        # if sampling skills, return full buffer and trajectory buffer
-        traj_buffer = ReplayBuffer(
-            states=seed_states,
-            next_states=end_states,
-            z_vals=z_vals_traj,
-            z_attns=z_attns_traj
-        )
-        return full_buffer, traj_buffer
         

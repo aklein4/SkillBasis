@@ -45,13 +45,13 @@ def main():
                 if i == 0 and j == 0:
                     center = enc[z].item()
 
-        # grid = torch.sigmoid((grid - center) * L_SCALE)
+        grid = torch.log(torch.sigmoid((grid - center) * L_SCALE))
 
         plt.imshow(utils.torch2np(grid))
         plt.show()
         plt.clf()
 
-    rocket = Drone(discrete=True, render=True, max_t=5)
+    rocket = Drone(discrete=True, render=True, max_t=2.5)
     env = Environment(rocket, pi_model)
 
     while True:
@@ -65,7 +65,7 @@ def main():
             except:
                 continue
         
-        comb = encoder_model(loc)
+        comb = encoder_model(loc) - encoder_model(torch.zeros_like(loc))
         vals = torch.sign(comb)
         attn = torch.abs(comb) / torch.sum(torch.abs(comb))
 
@@ -76,7 +76,7 @@ def main():
 
         l_seed = encoder_model(batch.states[0])
         l = encoder_model(batch.states)
-        delta_l = (l - l_seed.unsqueeze(0)) * L_SCALE
+        delta_l = l * L_SCALE
 
         logmoid = torch.log(
             torch.clamp(torch.sigmoid(vals * delta_l), min=CLAM)

@@ -25,7 +25,6 @@ RUNNERS = [
     [0.5, -0.5]
 ]
 SCALE = 10
-K = 4
 
 
 def main():
@@ -45,14 +44,9 @@ def main():
 
     for runner in RUNNERS:
         loc = torch.tensor(runner).to(utils.DEVICE).unsqueeze(0) * SCALE
-        
-        full_skill = encoder_model(loc).squeeze(0)
-        topk = torch.topk(full_skill, K)[1]
-        skill = torch.zeros_like(full_skill)
-        for i in range(K):
-            skill[topk[i]] = full_skill[topk[i]]
-        skill = skill.unsqueeze(0) / torch.sum(skill)
-        
+        skill = encoder_model(loc)
+        skill /= torch.sum(skill)
+
         batch = env.sample(1, skill=(skill, torch.ones_like(skill)), greedy=False)
         states.append(utils.torch2np(batch.states[:, :2]))
 
