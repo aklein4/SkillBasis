@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import utils
-from models import Baseline
+from models import Baseline, Encoder
 
 from tqdm import tqdm
 
@@ -14,7 +14,7 @@ BASELINE_LR_COEF = 1e-1
 REG_L2 = 1e-3
 REG_ENTROPY = 10
 
-REWARD_SCALE = 10
+L_SCALE = 10
 
 PPO_CLIP = 0.2
 
@@ -44,12 +44,14 @@ class Trainer:
         self.alpha_entropy = None
 
         # target model for baseline
-        self.target_model = Baseline().to(utils.DEVICE)
+        self.target_baseline = Baseline().to(utils.DEVICE)
+        self.target_encoder = Encoder().to(utils.DEVICE)
         self._update_target()
 
     
     def _update_target(self):
-        self.target_model.load_state_dict(self.baseline_model.state_dict())
+        self.target_baseline.load_state_dict(self.baseline_model.state_dict())
+        self.target_encoder.load_state_dict(self.encoder_model.state_dict())
 
 
     def _smooth(self, accum, next):
@@ -61,7 +63,9 @@ class Trainer:
     def _get_z_log_prob(self, batch, L_norm_too=False):
         
         # get state encodings
-        delta_l = self.encoder_model(batch.next_states)
+        l = self.target_encoder(batch.states).detach()
+        l_next = self.encoder_model(batch.next_states)
+        delta_l = (l_next - l) * L_SCALE
 
         # get skills basis
         L, L_norm = self.basis_model(len(batch))
@@ -114,11 +118,11 @@ class Trainer:
         # get the reward
         reward = mutual_info + self.alpha_entropy * pi_entropy_next
         reward -= self.alpha_entropy * torch.mean(pi_entropy_next).item()
-        reward = REWARD_SCALE * reward.detach()
+        reward = reward.detach()
 
         # get baselines
         V = self.baseline_model(batch.states, batch.z_vals, batch.z_attns).squeeze(-1)
-        V_next = self.target_model(batch.next_states, batch.z_vals, batch.z_attns).squeeze(-1).detach()
+        V_next = self.target_baseline(batch.next_states, batch.z_vals, batch.z_attns).squeeze(-1).detach()
         value = reward + self.discount * V_next
 
         # use baseline
@@ -190,6 +194,7 @@ class Trainer:
             # set model modes
             self.encoder_model.train()
             self.basis_model.train()
+            self.target_encoder.eval()
 
             # train for epochs
             for epoch in range(z_epochs):
@@ -210,10 +215,12 @@ class Trainer:
 
             # set model modes
             self.pi_model.train()
-            self.encoder_model.train()
+            self.baseline_model.train()
+
+            self.encoder_model.eval()
             self.basis_model.eval()
-            self.baseline_model.eval()
-            self.target_model.eval()
+            self.target_baseline.eval()
+            self.target_encoder.eval()
 
             # accumulate logging info
             mutual_accum = 0
