@@ -4,8 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from environment import Environment
-from models import Policy, Encoder, Basis
+from models import Policy, Encoder
 from drone import Drone
+from trainer import L_SCALE, CLAM
 import utils
 
 import os
@@ -23,39 +24,34 @@ def main():
     encoder_model = encoder_model.to(utils.DEVICE)
     encoder_model.eval()
 
-    basis_model = Basis()
-    basis_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "basis_model.pt"), map_location='cpu'))
-    basis_model = basis_model.to(utils.DEVICE)
-    basis_model.eval()
-
     pi_model = Policy()
     pi_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "pi_model.pt"), map_location='cpu'))
     pi_model = pi_model.to(utils.DEVICE)
     pi_model.eval()
 
-    print(basis_model())
-
-    for z in range(8):
+    for z in range(encoder_model.config.n_skills):
 
         if input("Continue? ") == '':
             break
 
+        
         grid = torch.zeros(20, 20)
+        center = None
         for i in range(-10, 10):
             for j in range(-10, 10):
                 enc = encoder_model(torch.tensor([i, j] + [0]*(encoder_model.config.state_dim-2)).float().to(utils.DEVICE))
-                vals = (basis_model() @ enc.unsqueeze(-1)).squeeze(-1)
 
-                grid[i+10, j+10] = vals[z]
+                grid[i+10, j+10] = enc[z]
+                if i == 0 and j == 0:
+                    center = enc[z].item()
 
-        grid -= torch.min(grid)
-        grid /= torch.max(grid)
+        # grid = torch.sigmoid((grid - center) * L_SCALE)
 
         plt.imshow(utils.torch2np(grid))
         plt.show()
         plt.clf()
 
-    rocket = Drone(discrete=True, render=True)
+    rocket = Drone(discrete=True, render=True, max_t=5)
     env = Environment(rocket, pi_model)
 
     while True:
@@ -69,25 +65,26 @@ def main():
             except:
                 continue
         
-        skill = encoder_model(loc)
-        skill /= torch.sum(torch.abs(skill))
+        comb = encoder_model(loc)
+        vals = torch.sign(comb)
+        attn = torch.abs(comb) / torch.sum(torch.abs(comb))
 
-        print(skill)
+        print("Skill: ", utils.torch2np(vals * attn))
 
-        attended = (skill, torch.ones_like(skill))
-        batch = env.sample(1, 1, skill=attended, greedy=False)
+        skill = (vals, attn)
+        batch = env.sample(1, skill=skill, greedy=True)
 
+        l_seed = encoder_model(batch.states[0])
         l = encoder_model(batch.states)
-        l_next = encoder_model(batch.next_states)
-        delta_l = l_next * 10
+        delta_l = (l - l_seed.unsqueeze(0)) * L_SCALE
 
-        L, _ = basis_model(len(batch))
+        logmoid = torch.log(
+            torch.clamp(torch.sigmoid(vals * delta_l), min=CLAM)
+        )
+        log_probs = torch.sum(logmoid * attn, dim=-1)
+        probs = torch.exp(log_probs)
 
-        proj = torch.bmm(L, l_next.unsqueeze(-1)).squeeze(-1)
-
-        log_probs = torch.abs(skill) * torch.log(2 * torch.sigmoid(torch.sign(skill) * proj))
-
-        plt.plot(utils.torch2np(proj))
+        plt.plot(utils.torch2np(probs))
         plt.legend(["1", "2"])
         plt.show()
         plt.clf()

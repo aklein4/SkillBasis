@@ -9,11 +9,9 @@ RANDOM_RESET = False
 
 CANVAS_SIZE = 500
 
-
 DELTA_T = 0.05
 FORCE = 8
 TORQUE = np.pi
-
 
 BOUND = 20.0
 
@@ -31,7 +29,7 @@ DISCRETE_ACTIONS = np.array([
 
 
 class Drone:
-    def __init__(self, discrete=False, render=False, max_t = 5, boxes=None, target=np.array([19, 19])):
+    def __init__(self, discrete=False, render=False, max_t = 10, boxes=None, target=np.array([19, 19])):
         self.discrete = discrete
         self.boxes = boxes
         self.target = target

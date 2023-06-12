@@ -7,35 +7,16 @@ import random
 
 
 class ReplayBuffer:
-    def __init__(self,
-        seed_states=None,
-        states=None,
-        next_states=None,
-        actions=None,
-        og_probs=None,
-        z_vals=None,
-        z_attns=None,
-        d=None
-    ):
-        assert states is not None or d is not None, "Must provide states or d"
-
+    def __init__(self, **kwargs):
         self.d = {}
-        if d is not None:
-            self.d = d.copy()
-            return
+        if 'd' in kwargs.keys():
+            for k in kwargs['d'].keys():
+                self.d[k] = kwargs['d'][k]
 
-        # convert all to tensors
-        self.d["seed_states"] = torch.stack(seed_states).to(DEVICE)
-        self.d["states"] = torch.stack(states).to(DEVICE)
-        self.d["next_states"] = torch.stack(next_states).to(DEVICE)
-
-        self.d["actions"] = torch.stack(actions).to(DEVICE)
-        self.d["og_probs"] = torch.stack(og_probs).to(DEVICE)
-
-        self.d["z_vals"] = torch.stack(z_vals).to(DEVICE)
-        self.d["z_attns"] = torch.stack(z_attns).to(DEVICE)
-
-        for k in self.d.keys():
+        for k in kwargs.keys():
+            if k == 'd':
+                continue
+            self.d[k] = torch.stack(kwargs[k]).to(DEVICE)
             self.d[k].detach_()
 
 
@@ -49,7 +30,14 @@ class ReplayBuffer:
         """
         Number of elements in the buffer.
         """
-        return self.d["states"].shape[0]
+        l = None
+        for k in self.d.keys():
+            if l is None:
+                l = self.d[k].shape[0]
+            else:
+                assert l == self.d[k].shape[0], "All elements must have same length"
+        
+        return l
     
 
     def shuffle(self):

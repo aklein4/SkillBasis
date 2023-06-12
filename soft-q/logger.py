@@ -10,14 +10,12 @@ class Logger:
     def __init__(self,
             pi_model,
             encoder_model,
-            basis_model,
             log_loc,
             save_every
         ):
 
         self.pi_model = pi_model
         self.encoder_model = encoder_model
-        self.basis_model = basis_model
 
         # metrics to track
         self.informations = []
@@ -55,7 +53,7 @@ class Logger:
         ax[0, 1].set_title("Q-value MSE Loss")
 
         ax[1, 0].plot(self.norms)
-        ax[1, 0].set_title("Latent Skill Cosine Similarity")
+        ax[1, 0].set_title("delta_l L1 Norm")
         ax[1, 0].set_xlabel("Iteration (8 episodes per)")
         
         ax[1, 1].plot(self.entropies)
@@ -67,15 +65,13 @@ class Logger:
         plt.close(fig)
 
 
-    def log(self, information, q_loss, entrop):
+    def log(self, information, q_loss, norm, entrop):
 
         # save metrics
         self.informations.append(information)
         self.q_losses.append(q_loss)
+        self.norms.append(norm)
         self.entropies.append(entrop)
-
-        # extract basis norm
-        self.norms.append(torch.mean(torch.norm(self.basis_model(), p=2, dim=-1)).item())
 
         self.write()
 
@@ -87,4 +83,3 @@ class Logger:
         self.plot()
         torch.save(self.pi_model.state_dict(), os.path.join(self.log_loc, "pi_model.pt"))
         torch.save(self.encoder_model.state_dict(), os.path.join(self.log_loc, "encoder_model.pt"))
-        torch.save(self.basis_model.state_dict(), os.path.join(self.log_loc, "basis_model.pt"))

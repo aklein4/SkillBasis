@@ -2,7 +2,7 @@
 import torch
 
 from environment import Environment, SkillGenerator
-from models import Policy, Encoder, Basis
+from models import Policy, Encoder
 from trainer import Trainer
 from logger import Logger
 from drone import Drone
@@ -20,12 +20,13 @@ UPDATE_EVERY = 8
 N_EPISODES = 2
 SAMPLE_BATCH_SIZE = 4
 SKILL_EPOCHS = 1
-PI_EPOCHS = 5
+PI_EPOCHS = 1
 
 LR = 1e-4
 BATCH_SIZE = 16
-BUFFER_SIZE = 50 * N_EPISODES * SAMPLE_BATCH_SIZE * 10 - 1
+BUFFER_SIZE = 100 * N_EPISODES * SAMPLE_BATCH_SIZE * 10
 
+SKILL_PERIOD = 32
 DISCOUNT = 0.9
 
 SMOOTHING = 0.9
@@ -36,15 +37,14 @@ def main():
     # fresh models
     pi_model = Policy().to(utils.DEVICE)
     encoder_model = Encoder().to(utils.DEVICE)
-    basis_model = Basis().to(utils.DEVICE)
 
-    logger = Logger(pi_model, encoder_model, basis_model, OUTPUT_DIR, SAVE_EVERY)
+    logger = Logger(pi_model, encoder_model, OUTPUT_DIR, SAVE_EVERY)
 
     rocket = Drone(discrete=True, render=False)
     skill_gen = SkillGenerator(pi_model.config.n_skills)
     env = Environment(rocket, pi_model, skill_gen)
 
-    trainer = Trainer(env, pi_model, encoder_model, basis_model, logger)
+    trainer = Trainer(env, pi_model, encoder_model, logger)
 
     # train trial
     trainer.train(
@@ -57,6 +57,7 @@ def main():
         LR,
         BATCH_SIZE,
         BUFFER_SIZE,
+        SKILL_PERIOD,
         DISCOUNT,
         SMOOTHING
     )

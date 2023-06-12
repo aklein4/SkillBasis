@@ -15,7 +15,7 @@ class Encoder(nn.Module):
         self.net = model_utils.Net(
             config.obs_dim,
             config.hidden_dim,
-            config.latent_dim,
+            config.n_skills,
             config.n_layers,
             config.dropout
         )
@@ -23,34 +23,6 @@ class Encoder(nn.Module):
     
     def forward(self, s):
         return self.net(s[...,:self.config.obs_dim])
-
-
-class Basis(nn.Module):
-    def __init__(self, config=configs.DefaultBasis):
-        super().__init__()
-        self.config = config
-
-        base = torch.zeros(config.n_skills, config.latent_dim)
-        for i in range(self.config.n_skills):
-            if i < config.latent_dim:
-                base[i, i] = 1
-            else:
-                # rotationally symmetric sample
-                v = torch.randn(config.latent_dim)
-                base[i] = v / torch.norm(v, p=2)
-        self.basis = nn.Parameter(base)
-
-
-    def forward(self, batch_size=None):
-        if batch_size is None:
-            return self.basis
-
-        basis = self.basis.unsqueeze(0)
-        basis = basis.expand(batch_size, -1, -1)
-
-        norm = torch.norm(basis, p=2, dim=-1, keepdim=True)
-
-        return basis.detach(), torch.mean(norm).detach()
     
 
 class Policy(nn.Module):

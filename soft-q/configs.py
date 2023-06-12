@@ -19,7 +19,6 @@ DefaultConfig = Config(
 
     # skill params
     n_skills = 2,
-    latent_dim = 2,
 
     # model params
     hidden_dim = 32,
@@ -35,13 +34,7 @@ DefaultEncoder = Config(
 DefaultEncoder.inherit(DefaultConfig)
 
 
-DefaultBasis = Config(
-)
-DefaultBasis.inherit(DefaultConfig)
-
-
 DefaultPolicy = Config(
-    discrete = True,
     alpha = 0.1
 )
 DefaultPolicy.inherit(DefaultConfig)
