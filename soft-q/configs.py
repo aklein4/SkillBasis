@@ -14,7 +14,7 @@ class Config(dict):
 DefaultConfig = Config(
 
     # env params
-    state_dim = 5,
+    state_dim = 6,
     action_dim = 9,
 
     # skill params

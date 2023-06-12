@@ -61,10 +61,11 @@ class Trainer:
     
 
     def _get_z_log_prob(self, batch, L_norm_too=False):
-        
+
         # get state encodings
         l = self.target_encoder(batch.states).detach()
         l_next = self.encoder_model(batch.next_states)
+
         delta_l = (l_next - l) * L_SCALE
 
         # get skills basis
@@ -156,6 +157,7 @@ class Trainer:
     def train(self,
             n_iters,
             update_every,
+            sample_batch_size,
             n_episodes,
             z_epochs,
             pi_epochs,
@@ -187,7 +189,7 @@ class Trainer:
         for it in pbar:
 
             # get samples
-            buffer = self.env.sample(n_episodes)
+            buffer = self.env.sample(n_episodes, batch_size=sample_batch_size)
 
             """ ----- Train Skills ----- """
 

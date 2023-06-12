@@ -68,7 +68,7 @@ class Policy(nn.Module):
 
     
     def forward(self, s, z_val, z_attn):
-
+        
         inp = torch.cat([s, z_val * z_attn], dim=-1)
         out = self.net(inp)
 

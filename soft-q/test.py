@@ -21,14 +21,17 @@ def main():
     encoder_model = Encoder()
     encoder_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "encoder_model.pt"), map_location='cpu'))
     encoder_model = encoder_model.to(utils.DEVICE)
+    encoder_model.eval()
 
     basis_model = Basis()
     basis_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "basis_model.pt"), map_location='cpu'))
     basis_model = basis_model.to(utils.DEVICE)
+    basis_model.eval()
 
     pi_model = Policy()
     pi_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "pi_model.pt"), map_location='cpu'))
     pi_model = pi_model.to(utils.DEVICE)
+    pi_model.eval()
 
     print(basis_model())
 
@@ -63,14 +66,16 @@ def main():
             skill = input("Enter skill: ")
             try:
                 skill = [float(i.strip()) for i in skill.split(',')]
-                skill = torch.tensor(skill).float().to(utils.DEVICE)
+                skill = torch.tensor(skill).float().to(utils.DEVICE).unsqueeze(0)
             except:
                 continue
         
         attended = (skill, torch.ones_like(skill))
-        batch = env.sample(1, skill=attended, greedy=False)
+        batch = env.sample(1, 1, skill=attended, greedy=False)
 
-        delta_l = encoder_model(batch.states)
+        l = encoder_model(batch.states)
+        l_next = encoder_model(batch.next_states)
+        delta_l = l_next - l
 
         L, _ = basis_model(len(batch))
 

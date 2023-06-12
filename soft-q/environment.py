@@ -12,12 +12,13 @@ class SkillGenerator():
         # tensor to fill for skill attentions
         self.attn = torch.zeros_like(self.probs)
 
-    def sample(self):
+    def sample(self, batch_size):
         # vals in {-1, 1}
-        vals = (2 * torch.bernoulli(self.probs)) - 1
+        vals = (2 * torch.bernoulli(self.probs.unsqueeze(0).expand(batch_size, -1))) - 1
         # attns samples from L1 normed exponential distribution
-        self.attn.exponential_()
-        return vals, self.attn.detach() / self.attn.sum()
+        attn = self.attn.unsqueeze(0).expand(batch_size, -1).clone()
+        attn.exponential_()
+        return vals, attn.detach() / attn.sum(dim=-1, keepdim=True)
 
     def log_prob(self, batch_size):
         return torch.log(torch.ones([batch_size], device=utils.DEVICE) * 0.5)
@@ -34,7 +35,7 @@ class Environment():
         self.env = env
 
 
-    def sample(self, n_episodes, skill=None, greedy=False):
+    def sample(self, n_episodes, batch_size=1, skill=None, greedy=False):
         assert skill is not None or self.skill_generator is not None
 
         # set models modes
@@ -54,12 +55,12 @@ class Environment():
             for _ in range(n_episodes):
 
                 # reset environment
-                s = utils.np2torch(self.env.reset()).float()
+                s = utils.np2torch(self.env.reset(batch_size)).float()
                 seed = s
 
                 z_val, z_attn = None, None
                 if skill is None:
-                    z_val, z_attn = self.skill_generator.sample()
+                    z_val, z_attn = self.skill_generator.sample(batch_size)
                 else:
                     z_val, z_attn = skill
 
@@ -86,13 +87,14 @@ class Environment():
                         break
 
                     else:
-                        seed_states.append(seed)
-                        states.append(s)
-                        next_states.append(new_s)
-                        actions.append(a)
-                        og_probs.append(og_prob)
-                        z_vals.append(z_val)
-                        z_attns.append(z_attn)
+                        for i in range(batch_size):
+                            seed_states.append(seed[i])
+                            states.append(s[i])
+                            next_states.append(new_s[i])
+                            actions.append(a[i])
+                            og_probs.append(og_prob[i])
+                            z_vals.append(z_val[i])
+                            z_attns.append(z_attn[i])
                         
                         s = new_s
 

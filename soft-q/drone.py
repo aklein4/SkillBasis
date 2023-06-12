@@ -11,9 +11,10 @@ CANVAS_SIZE = 500
 
 DELTA_T = 0.1
 FORCE = 5
-TORQUE = np.pi * 2
+TORQUE = np.pi
 
-MAX_SPEED = 5.0
+MAX_SPEED = 10 * FORCE * DELTA_T
+MAX_ANG_VEL = 2 * TORQUE * DELTA_T
 
 BOUND = 20.0
 
@@ -36,6 +37,7 @@ class Drone:
         self.boxes = boxes
         self.target = target
 
+        self.batch_size = None
         self.t = None
         self.max_t = max_t
 
@@ -43,6 +45,7 @@ class Drone:
         self.vel = None
         
         self.ang = None
+        self.ang_vel = None
 
         self.unit = CANVAS_SIZE / (BOUND * 2)
         self.canvas = None
@@ -68,18 +71,18 @@ class Drone:
             # self.canvas.delete(self.arrow)
             self.canvas.coords(
                 self.arrow,
-                int(CANVAS_SIZE / 2 + self.unit*self.pos[0]),
-                int(CANVAS_SIZE / 2 + self.unit*self.pos[1]),
-                int(CANVAS_SIZE / 2 + self.unit*self.pos[0] + self.unit*np.cos(self.ang)), 
-                int(CANVAS_SIZE / 2 + self.unit*self.pos[1] + self.unit*np.sin(self.ang)),
+                int(CANVAS_SIZE / 2 + self.unit*self.pos[0,0]),
+                int(CANVAS_SIZE / 2 + self.unit*self.pos[0,1]),
+                int(CANVAS_SIZE / 2 + self.unit*self.pos[0,0] + self.unit*np.cos(self.ang[0])), 
+                int(CANVAS_SIZE / 2 + self.unit*self.pos[0,1] + self.unit*np.sin(self.ang[0])),
             )
             
             self.canvas.coords(
                 self.circle,
-                int(CANVAS_SIZE / 2 + self.unit*self.pos[0] - self.unit),
-                int(CANVAS_SIZE / 2 + self.unit*self.pos[1] - self.unit),
-                int(CANVAS_SIZE / 2 + self.unit*self.pos[0] + self.unit),
-                int(CANVAS_SIZE / 2 + self.unit*self.pos[1] + self.unit)
+                int(CANVAS_SIZE / 2 + self.unit*self.pos[0,0] - self.unit),
+                int(CANVAS_SIZE / 2 + self.unit*self.pos[0,1] - self.unit),
+                int(CANVAS_SIZE / 2 + self.unit*self.pos[0,0] + self.unit),
+                int(CANVAS_SIZE / 2 + self.unit*self.pos[0,1] + self.unit)
             )
 
             self.root.update()
@@ -87,28 +90,31 @@ class Drone:
             time.sleep(DELTA_T)
 
     
-    def reset(self):
+    def reset(self, batch_size=1):
         self.t = 0
+        self.batch_size = batch_size
 
         if RANDOM_RESET:
-            self.pos = np.random.uniform(-BOUND, BOUND, 2)
-            self.speed = np.zeros(1)
-            self.ang = np.random.uniform(-np.pi, np.pi, 1)
+            self.pos = np.random.uniform(-BOUND, BOUND, (batch_size, 2))
+            self.speed = np.zeros((batch_size, 1))
+            self.ang = np.random.uniform(-np.pi, np.pi, (batch_size, 1))
+            self.ang_vel = np.zeros((batch_size, 1))
 
         else:
-            self.pos = np.array([0, 0])
-            self.speed = np.zeros(1)
-            self.ang = np.zeros(1)
+            self.pos = np.zeros((batch_size, 2))
+            self.speed = np.zeros((batch_size, 1))
+            self.ang = np.zeros((batch_size, 1))
+            self.ang_vel = np.zeros((batch_size, 1))
 
         return self.getState()
     
 
     def getState(self):
-        dir = np.array([np.cos(self.ang), np.sin(self.ang)])[:, 0]
+        dir = np.concatenate([np.cos(self.ang), np.sin(self.ang)], axis=-1)
         state = np.concatenate([
-            self.pos / BOUND, dir, self.speed / MAX_SPEED
-        ], axis=0)
-    
+            self.pos / BOUND, dir, self.speed / MAX_SPEED, self.ang_vel / MAX_ANG_VEL
+        ], axis=-1)
+
         return state
     
     
@@ -130,41 +136,43 @@ class Drone:
         if self.discrete:
             action = DISCRETE_ACTIONS[action]
 
-        # apply acceleration        
-        self.speed += action[0] * DELTA_T * FORCE
+        # apply acceleration       
+        self.speed += (action[:,:1] + action[:,1:]) * DELTA_T * FORCE
+        self.ang_vel += (action[:,:1] - action[:,1:]) * DELTA_T * TORQUE
 
         # clip speed
         self.speed = np.clip(self.speed, -MAX_SPEED, MAX_SPEED)
+        self.ang_vel = np.clip(self.ang_vel, -MAX_ANG_VEL, MAX_ANG_VEL)
 
         # apply velocity
-        self.ang += action[1] * DELTA_T * TORQUE
+        self.ang += self.ang_vel * DELTA_T * TORQUE
         old_pos = self.pos.copy()
-        self.pos = self.pos + np.array([
-            np.cos(self.ang) * self.speed * DELTA_T,
-            np.sin(self.ang) * self.speed * DELTA_T
-        ]).squeeze(-1)
+        self.pos[:,:1] += np.cos(self.ang) * self.speed * DELTA_T
+        self.pos[:,1:] += np.sin(self.ang) * self.speed * DELTA_T
 
         # clip position
         self.pos = np.clip(self.pos, -BOUND+0.01, BOUND-0.01)
 
         # apply walls
         if self.checkCollision(self.pos):
-            return self.reset(), 0, True, None     
+            return None, 0, True, None     
 
         # check done
         self.t += DELTA_T
         if self.t >= self.max_t:
-            return self.reset(), 0, True, None
+            return self.getState(), 0, True, None
 
-        # get reward for moving closer
-        reward = -(np.linalg.norm(self.pos - self.target) - np.linalg.norm(old_pos - self.target))
+        return self.getState(), 0, False, None
 
-        # check if at target
-        if np.linalg.norm(self.pos - self.target) < 1:
-            return self.reset(), reward, True, None
+        # # get reward for moving closer
+        # reward = -(np.linalg.norm(self.pos - self.target) - np.linalg.norm(old_pos - self.target))
 
-        # regular step
-        return self.getState(), reward, False, None
+        # # check if at target
+        # if np.linalg.norm(self.pos - self.target) < 1:
+        #     return self.reset(), reward, True, None
+
+        # # regular step
+        # return self.getState(), reward, False, None
 
 
 def main():

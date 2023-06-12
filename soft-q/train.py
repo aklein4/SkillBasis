@@ -17,7 +17,8 @@ SAVE_EVERY = 16
 N_ITERS = 2048*2
 UPDATE_EVERY = 8
 
-N_EPISODES = 8
+N_EPISODES = 2
+SAMPLE_BATCH_SIZE = 4
 SKILL_EPOCHS = 1
 PI_EPOCHS = 1
 
@@ -51,6 +52,7 @@ def main():
         N_ITERS,
         UPDATE_EVERY,
         N_EPISODES,
+        SAMPLE_BATCH_SIZE,
         SKILL_EPOCHS,
         PI_EPOCHS,
         LR,
