@@ -12,7 +12,7 @@ from tqdm import tqdm
 REG_DIST = 1
 
 L_SCALE = 1
-REWARD_SCALE = 10
+REWARD_SCALE = 500
 
 CLAM = 1e-3
 
@@ -73,7 +73,7 @@ class Trainer:
         z_log_prob = torch.sum(batch.z_attns * logmoid, dim=-1)
 
         if metrics:
-            return z_log_prob, torch.norm(delta_l, p=1, dim=-1)
+            return z_log_prob, delta_l
         return z_log_prob
 
 
@@ -86,15 +86,15 @@ class Trainer:
     def _skill_loss(self, batch):
 
         # get log probabilities of each skill
-        z_log_prob, dist = self._get_z_log_prob(batch, True, True)
+        z_log_prob, delta_l = self._get_z_log_prob(batch, True, False)
 
         # want to maximize the log probability of the skills
         z_loss = -torch.mean(z_log_prob)
 
         # add L2 regularization to the distance between state encodings
-        dist_loss = torch.mean(REG_DIST * (dist**2))
+        dist_loss = torch.mean(torch.sum(REG_DIST * (delta_l**2), dim=-1))
 
-        return z_loss + dist_loss, torch.sum(dist).item()
+        return z_loss + dist_loss, torch.sum(torch.mean(torch.abs(delta_l), dim=-1)).item()
 
 
     def _pi_loss(self, batch):

@@ -36,16 +36,13 @@ def main():
 
         
         grid = torch.zeros(20, 20)
-        center = None
         for i in range(-10, 10):
             for j in range(-10, 10):
                 enc = encoder_model(torch.tensor([i, j] + [0]*(encoder_model.config.state_dim-2)).float().to(utils.DEVICE))
 
                 grid[i+10, j+10] = enc[z]
-                if i == 0 and j == 0:
-                    center = enc[z].item()
 
-        grid = torch.log(torch.sigmoid((grid - center) * L_SCALE))
+        grid = torch.log(torch.sigmoid(grid * L_SCALE))
 
         plt.imshow(utils.torch2np(grid))
         plt.show()
@@ -74,17 +71,16 @@ def main():
         skill = (vals, attn)
         batch = env.sample(1, skill=skill, greedy=True)
 
-        l_seed = encoder_model(batch.states[0])
-        l = encoder_model(batch.states)
-        delta_l = l * L_SCALE
+        l = encoder_model(batch.states[0])
+        l_next = encoder_model(batch.next_states)
+        delta_l = (l_next - l) * L_SCALE
 
         logmoid = torch.log(
             torch.clamp(torch.sigmoid(vals * delta_l), min=CLAM)
         )
         log_probs = torch.sum(logmoid * attn, dim=-1)
-        probs = torch.exp(log_probs)
 
-        plt.plot(utils.torch2np(probs))
+        plt.plot(utils.torch2np(log_probs + 0.69))
         plt.legend(["1", "2"])
         plt.show()
         plt.clf()

@@ -35,7 +35,7 @@ DefaultEncoder.inherit(DefaultConfig)
 
 
 DefaultPolicy = Config(
-    alpha = 0.2
+    alpha = 0.1
 )
 DefaultPolicy.inherit(DefaultConfig)
 
