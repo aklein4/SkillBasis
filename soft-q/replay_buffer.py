@@ -13,8 +13,7 @@ class ReplayBuffer:
         next_states=None,
         actions=None,
         og_probs=None,
-        z_vals=None,
-        z_attns=None,
+        skills=None,
         d=None
     ):
         assert states is not None or d is not None, "Must provide states or d"
@@ -32,8 +31,7 @@ class ReplayBuffer:
         self.d["actions"] = torch.stack(actions).to(DEVICE)
         self.d["og_probs"] = torch.stack(og_probs).to(DEVICE)
 
-        self.d["z_vals"] = torch.stack(z_vals).to(DEVICE)
-        self.d["z_attns"] = torch.stack(z_attns).to(DEVICE)
+        self.d["skills"] = torch.stack(skills).to(DEVICE)
 
         for k in self.d.keys():
             self.d[k].detach_()

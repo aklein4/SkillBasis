@@ -1,4 +1,5 @@
 
+from typing import Any
 import torch
 
 from utils import DEVICE
@@ -13,8 +14,8 @@ class ReplayBuffer:
         next_states=None,
         actions=None,
         og_probs=None,
-        z_vals=None,
-        z_attns=None,
+        dones=None,
+        rewards=None,
         d=None
     ):
         assert states is not None or d is not None, "Must provide states or d"
@@ -25,15 +26,14 @@ class ReplayBuffer:
             return
 
         # convert all to tensors
-        self.d["seed_states"] = torch.stack(seed_states).to(DEVICE)
         self.d["states"] = torch.stack(states).to(DEVICE)
         self.d["next_states"] = torch.stack(next_states).to(DEVICE)
 
         self.d["actions"] = torch.stack(actions).to(DEVICE)
         self.d["og_probs"] = torch.stack(og_probs).to(DEVICE)
 
-        self.d["z_vals"] = torch.stack(z_vals).to(DEVICE)
-        self.d["z_attns"] = torch.stack(z_attns).to(DEVICE)
+        self.d["dones"] = torch.tensor(dones).to(DEVICE)
+        self.d["rewards"] = torch.tensor(rewards).to(DEVICE)
 
         for k in self.d.keys():
             self.d[k].detach_()

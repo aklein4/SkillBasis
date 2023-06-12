@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 
 class Net(nn.Module):
+
     def __init__(self, in_dim, h_dim, out_dim, n_layers, dropout):
         super().__init__()
 
@@ -41,6 +42,7 @@ class Net(nn.Module):
 
 
 class SkipNet(nn.Module):
+
     def __init__(self, in_dim, h_dim, out_dim, n_layers, dropout):
         super().__init__()
 
