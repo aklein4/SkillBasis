@@ -75,11 +75,13 @@ def main():
 
         l = encoder_model(batch.states)
         l_next = encoder_model(batch.next_states)
-        delta_l = l_next - l
+        delta_l = l_next * 10
 
         L, _ = basis_model(len(batch))
 
-        proj = torch.bmm(L, delta_l.unsqueeze(-1)).squeeze(-1)
+        proj = torch.bmm(L, l_next.unsqueeze(-1)).squeeze(-1)
+
+        log_probs = torch.abs(skill) * torch.log(2 * torch.sigmoid(torch.sign(skill) * proj))
 
         plt.plot(utils.torch2np(proj))
         plt.legend(["1", "2"])

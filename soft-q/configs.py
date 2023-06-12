@@ -14,7 +14,7 @@ class Config(dict):
 DefaultConfig = Config(
 
     # env params
-    state_dim = 6,
+    state_dim = 4,
     action_dim = 9,
 
     # skill params
@@ -40,13 +40,9 @@ DefaultBasis = Config(
 DefaultBasis.inherit(DefaultConfig)
 
 
-DefaultBaseline = Config(
-)
-DefaultBaseline.inherit(DefaultConfig)
-
-
 DefaultPolicy = Config(
-    discrete = True
+    discrete = True,
+    alpha = 0.1
 )
 DefaultPolicy.inherit(DefaultConfig)
 

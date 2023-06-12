@@ -38,8 +38,8 @@ def main():
     states = []
 
     for runner in RUNNERS:
-        curr_skill = torch.tensor(runner).to(utils.DEVICE)
-        batch = env.sample(1, (curr_skill, torch.ones_like(curr_skill)), greedy=False)
+        curr_skill = torch.tensor(runner).to(utils.DEVICE).unsqueeze(0)
+        batch = env.sample(1, 1, (curr_skill, torch.ones_like(curr_skill)), greedy=False)
         states.append(utils.torch2np(batch.states[:, :2]))
 
     for i in range(len(RUNNERS)):

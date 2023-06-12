@@ -9,7 +9,7 @@ class SkillGenerator():
     def __init__(self, n_skills):
         # for bernoulli distribution with p = 0.5
         self.probs = torch.ones([n_skills], device=utils.DEVICE) * 0.5
-        # tensor to fill for skill attentions
+        # sample attentions from uniform in [0, 1]
         self.attn = torch.zeros_like(self.probs)
 
     def sample(self, batch_size):
@@ -17,7 +17,7 @@ class SkillGenerator():
         vals = (2 * torch.bernoulli(self.probs.unsqueeze(0).expand(batch_size, -1))) - 1
         # attns samples from L1 normed exponential distribution
         attn = self.attn.unsqueeze(0).expand(batch_size, -1).clone()
-        attn.exponential_()
+        attn = torch.ones_like(attn) / attn.shape[-1]
         return vals, attn.detach() / attn.sum(dim=-1, keepdim=True)
 
     def log_prob(self, batch_size):
@@ -72,7 +72,7 @@ class Environment():
 
                     if greedy:
                         if self.pi_model.config.discrete:
-                            a = torch.argmax(pi.probs)
+                            a = torch.argmax(pi.probs, dim=-1)
                         else:
                             a = pi.loc
                     

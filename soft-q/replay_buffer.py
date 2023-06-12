@@ -65,6 +65,12 @@ class ReplayBuffer:
             self.d[k] = self.d[k][shuffler]
 
 
+    def reduce(self, size):
+        self.shuffle()
+        for k in self.d.keys():
+            self.d[k] = self.d[k][:size]
+
+
     def __getitem__(self, x):
         """ Get a batch of elements from the buffer.
 

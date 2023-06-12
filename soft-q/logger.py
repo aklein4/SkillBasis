@@ -11,7 +11,6 @@ class Logger:
             pi_model,
             encoder_model,
             basis_model,
-            baseline_model,
             log_loc,
             save_every
         ):
@@ -19,11 +18,10 @@ class Logger:
         self.pi_model = pi_model
         self.encoder_model = encoder_model
         self.basis_model = basis_model
-        self.baseline_model = baseline_model
 
         # metrics to track
         self.informations = []
-        self.baseline_losses = []
+        self.q_losses = []
         self.norms = []
         self.entropies = []
 
@@ -37,13 +35,13 @@ class Logger:
         # initialize metric csv
         with open(os.path.join(self.log_loc, "metrics.csv"), 'w') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-            spamwriter.writerow(["epoch"]  + ["information", "baseline_loss", "norm", "entropy"])
+            spamwriter.writerow(["epoch"]  + ["information", "q_loss", "norm", "entropy"])
 
 
     def write(self):
         with open(os.path.join(self.log_loc, "metrics.csv"), 'a') as csvfile:
             spamwriter = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-            spamwriter.writerow([len(self.informations)-1] + [self.informations[-1], self.baseline_losses[-1], self.norms[-1], self.entropies[-1]])
+            spamwriter.writerow([len(self.informations)-1] + [self.informations[-1], self.q_losses[-1], self.norms[-1], self.entropies[-1]])
 
 
     def plot(self):
@@ -53,8 +51,8 @@ class Logger:
         ax[0, 0].plot(self.informations)
         ax[0, 0].set_title("Skill-Transition Mutual Information")
         
-        ax[0, 1].plot(self.baseline_losses)
-        ax[0, 1].set_title("Baseline MSE Loss")
+        ax[0, 1].plot(self.q_losses)
+        ax[0, 1].set_title("Q-value MSE Loss")
 
         ax[1, 0].plot(self.norms)
         ax[1, 0].set_title("Latent Skill Cosine Similarity")
@@ -69,16 +67,15 @@ class Logger:
         plt.close(fig)
 
 
-    def log(self, information, baseline_loss, entrop):
+    def log(self, information, q_loss, entrop):
 
         # save metrics
         self.informations.append(information)
-        self.baseline_losses.append(baseline_loss)
+        self.q_losses.append(q_loss)
         self.entropies.append(entrop)
 
         # extract basis norm
-        bas = self.basis_model()
-        self.norms.append(torch.dot(bas[0], bas[1]).item())
+        self.norms.append(torch.mean(torch.norm(self.basis_model(), p=2, dim=-1)).item())
 
         self.write()
 
@@ -91,4 +88,3 @@ class Logger:
         torch.save(self.pi_model.state_dict(), os.path.join(self.log_loc, "pi_model.pt"))
         torch.save(self.encoder_model.state_dict(), os.path.join(self.log_loc, "encoder_model.pt"))
         torch.save(self.basis_model.state_dict(), os.path.join(self.log_loc, "basis_model.pt"))
-        torch.save(self.baseline_model.state_dict(), os.path.join(self.log_loc, "baseline_model.pt"))

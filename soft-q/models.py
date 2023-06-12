@@ -43,14 +43,14 @@ class Basis(nn.Module):
 
     def forward(self, batch_size=None):
         if batch_size is None:
-            return self.basis / torch.norm(self.basis, p=2, dim=-1, keepdim=True)
+            return self.basis
 
         basis = self.basis.unsqueeze(0)
         basis = basis.expand(batch_size, -1, -1)
 
         norm = torch.norm(basis, p=2, dim=-1, keepdim=True)
 
-        return basis / norm, torch.mean(norm)
+        return basis.detach(), torch.mean(norm).detach()
     
 
 class Policy(nn.Module):
@@ -61,44 +61,31 @@ class Policy(nn.Module):
         self.net = model_utils.Net(
             config.state_dim + config.n_skills,
             config.hidden_dim,
-            config.action_dim if config.discrete else config.action_dim * 2,
+            config.action_dim,
             config.n_layers,
             config.dropout
         )
 
     
     def forward(self, s, z_val, z_attn):
+        Q = self.Q(s, z_val, z_attn)
         
-        inp = torch.cat([s, z_val * z_attn], dim=-1)
-        out = self.net(inp)
-
-        dist = None
-        if self.config.discrete:
-            dist = torch.distributions.Categorical(logits=out)
-        
-        else:
-            mus = torch.tanh(out[..., :self.config.action_dim])
-            log_sigmas = out[..., self.config.action_dim:]
-            dist = torch.distributions.Normal(mus, torch.sigmoid(log_sigmas))
-        
-        return dist
+        return torch.distributions.Categorical(logits=Q / self.config.alpha)
     
 
-class Baseline(nn.Module):
-    def __init__(self, config=configs.DefaultBaseline):
-        super().__init__()
-        self.config = config
-
-        self.net = model_utils.Net(
-            config.state_dim + config.n_skills,
-            config.hidden_dim,
-            1,
-            config.n_layers,
-            config.dropout
-        )
-
-    
-    def forward(self, s, z_val, z_attn):
+    def Q(self, s, z_val, z_attn):
         inp = torch.cat([s, z_val * z_attn], dim=-1)
         return self.net(inp)
+    
 
+    def V(self, s, z_val, z_attn):
+        Q = self.Q(s, z_val, z_attn)
+
+        return self.config.alpha * torch.logsumexp(Q / self.config.alpha, dim=-1)
+    
+
+    def entropy(self, Q):
+
+        dist = torch.distributions.Categorical(logits=Q / self.config.alpha)
+
+        return dist.entropy()

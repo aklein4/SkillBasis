@@ -9,12 +9,11 @@ RANDOM_RESET = False
 
 CANVAS_SIZE = 500
 
-DELTA_T = 0.1
-FORCE = 5
+
+DELTA_T = 0.05
+FORCE = 8
 TORQUE = np.pi
 
-MAX_SPEED = 10 * FORCE * DELTA_T
-MAX_ANG_VEL = 2 * TORQUE * DELTA_T
 
 BOUND = 20.0
 
@@ -32,7 +31,7 @@ DISCRETE_ACTIONS = np.array([
 
 
 class Drone:
-    def __init__(self, discrete=False, render=False, max_t = 10, boxes=None, target=np.array([19, 19])):
+    def __init__(self, discrete=False, render=False, max_t = 5, boxes=None, target=np.array([19, 19])):
         self.discrete = discrete
         self.boxes = boxes
         self.target = target
@@ -42,10 +41,7 @@ class Drone:
         self.max_t = max_t
 
         self.pos = None
-        self.vel = None
-        
         self.ang = None
-        self.ang_vel = None
 
         self.unit = CANVAS_SIZE / (BOUND * 2)
         self.canvas = None
@@ -96,15 +92,11 @@ class Drone:
 
         if RANDOM_RESET:
             self.pos = np.random.uniform(-BOUND, BOUND, (batch_size, 2))
-            self.speed = np.zeros((batch_size, 1))
             self.ang = np.random.uniform(-np.pi, np.pi, (batch_size, 1))
-            self.ang_vel = np.zeros((batch_size, 1))
 
         else:
             self.pos = np.zeros((batch_size, 2))
-            self.speed = np.zeros((batch_size, 1))
             self.ang = np.zeros((batch_size, 1))
-            self.ang_vel = np.zeros((batch_size, 1))
 
         return self.getState()
     
@@ -112,7 +104,7 @@ class Drone:
     def getState(self):
         dir = np.concatenate([np.cos(self.ang), np.sin(self.ang)], axis=-1)
         state = np.concatenate([
-            self.pos / BOUND, dir, self.speed / MAX_SPEED, self.ang_vel / MAX_ANG_VEL
+            self.pos / BOUND, dir
         ], axis=-1)
 
         return state
@@ -136,19 +128,11 @@ class Drone:
         if self.discrete:
             action = DISCRETE_ACTIONS[action]
 
-        # apply acceleration       
-        self.speed += (action[:,:1] + action[:,1:]) * DELTA_T * FORCE
-        self.ang_vel += (action[:,:1] - action[:,1:]) * DELTA_T * TORQUE
-
-        # clip speed
-        self.speed = np.clip(self.speed, -MAX_SPEED, MAX_SPEED)
-        self.ang_vel = np.clip(self.ang_vel, -MAX_ANG_VEL, MAX_ANG_VEL)
-
         # apply velocity
-        self.ang += self.ang_vel * DELTA_T * TORQUE
+        self.ang += action[:,1:] * DELTA_T * TORQUE
         old_pos = self.pos.copy()
-        self.pos[:,:1] += np.cos(self.ang) * self.speed * DELTA_T
-        self.pos[:,1:] += np.sin(self.ang) * self.speed * DELTA_T
+        self.pos[:,:1] += np.cos(self.ang) * action[:,:1] * FORCE * DELTA_T
+        self.pos[:,1:] += np.sin(self.ang) * action[:,:1] * FORCE * DELTA_T
 
         # clip position
         self.pos = np.clip(self.pos, -BOUND+0.01, BOUND-0.01)
