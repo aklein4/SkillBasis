@@ -46,7 +46,7 @@ def main():
         rg = (RUNNERS[i][0] + 1)/2
         b = (RUNNERS[i][1] + 1)/2
         c = (rg, rg, b)
-        plt.plot(states[i][:, 0], states[i][:, 1], label=str(RUNNERS[i]), color=c)
+        plt.plot(states[i][:, 0], states[i][:, 1], label=str(RUNNERS[i]))
 
     plt.legend()
     plt.show()

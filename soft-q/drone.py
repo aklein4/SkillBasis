@@ -11,7 +11,7 @@ CANVAS_SIZE = 500
 
 DELTA_T = 0.1
 FORCE = 5
-TORQUE = 0.5
+TORQUE = np.pi * 2
 
 MAX_SPEED = 5.0
 

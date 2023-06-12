@@ -15,6 +15,7 @@ REG_L2 = 1e-3
 REG_ENTROPY = 10
 
 REWARD_SCALE = 10
+
 PPO_CLIP = 0.2
 
 
@@ -58,8 +59,9 @@ class Trainer:
     
 
     def _get_z_log_prob(self, batch, L_norm_too=False):
+        
         # get state encodings
-        delta_l = self.encoder_model(batch.states, batch.next_states)
+        delta_l = self.encoder_model(batch.next_states)
 
         # get skills basis
         L, L_norm = self.basis_model(len(batch))
@@ -94,8 +96,6 @@ class Trainer:
 
     def _pi_loss(self, batch):
 
-        """ Training """
-
         # weighted sum the logmoids to get total log probability
         z_log_prob = self._get_z_log_prob(batch).detach()
 
@@ -107,9 +107,12 @@ class Trainer:
         pi_next = self.pi_model(batch.next_states, batch.z_vals, batch.z_attns)
         pi_entropy_next = pi_next.entropy().detach()
 
+        # calculate the mutual information
+        z_log_prior = self.env.skill_generator.log_prob(len(batch))
+        mutual_info = z_log_prob - z_log_prior
+
         # get the reward
-        reward = z_log_prob + self.alpha_entropy * pi_entropy_next
-        reward -= torch.log(torch.ones_like(z_log_prob) * 0.5)
+        reward = mutual_info + self.alpha_entropy * pi_entropy_next
         reward -= self.alpha_entropy * torch.mean(pi_entropy_next).item()
         reward = REWARD_SCALE * reward.detach()
 
@@ -136,12 +139,6 @@ class Trainer:
                 dim=-1
             )
         )
-
-        """ Logging """
-
-        # calculate the mutual information
-        z_log_prior = self.env.skill_generator.log_prob(len(batch))
-        mutual_info = z_log_prob - z_log_prior
 
         # get logging metrics
         logging_mutual_info = torch.sum(mutual_info).item()

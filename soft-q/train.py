@@ -11,7 +11,7 @@ import utils
 
 # result directory
 OUTPUT_DIR = 'test'
-SAVE_EVERY = 4
+SAVE_EVERY = 16
 
 # training parameters
 N_ITERS = 2048*2
@@ -24,7 +24,7 @@ PI_EPOCHS = 1
 LR = 1e-4
 BATCH_SIZE = 16
 
-DISCOUNT = 0.0
+DISCOUNT = 0.75
 ALPHA_ENTROPY = 0.1
 
 SMOOTHING = 0.75

@@ -13,7 +13,7 @@ class Encoder(nn.Module):
         self.config = config
 
         self.net = model_utils.Net(
-            config.obs_dim * 2,
+            config.obs_dim,
             config.hidden_dim,
             config.latent_dim,
             config.n_layers,
@@ -21,8 +21,8 @@ class Encoder(nn.Module):
         )
 
     
-    def forward(self, s, s_next):
-        return self.net(torch.cat([s[...,:self.config.obs_dim], s_next[...,:self.config.obs_dim]], dim=-1))
+    def forward(self, s):
+        return self.net(s[...,:self.config.obs_dim])
 
 
 class Basis(nn.Module):

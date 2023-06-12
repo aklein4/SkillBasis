@@ -31,24 +31,27 @@ def main():
     pi_model = pi_model.to(utils.DEVICE)
 
     print(basis_model())
-    exit()
 
-    # grid = torch.zeros(20, 20, 2)
-    # for i in range(-10, 10):
-    #     for j in range(-10, 10):
-    #         enc = encoder_model(torch.tensor([i, j] + [0]*(encoder_model.config.state_dim-2)).float().to(utils.DEVICE))
-    #         vals = (basis_model() @ enc.unsqueeze(-1)).squeeze(-1)
+    grid = torch.zeros(20, 20, 2)
+    for i in range(-10, 10):
+        for j in range(-10, 10):
+            enc = encoder_model(torch.tensor([i, j] + [0]*(encoder_model.config.state_dim-2)).float().to(utils.DEVICE))
+            vals = (basis_model() @ enc.unsqueeze(-1)).squeeze(-1)
 
-    #         grid[i+10, j+10] = vals[:2]
+            grid[i+10, j+10] = vals[:2]
 
-    # grid -= torch.min(grid)
-    # grid /= torch.max(grid)
+    # for i in [0, 1]:
+    #     grid[:, :, i] -= torch.min(grid[:, :, i])
+    #     grid[:, :, i] /= torch.max(grid[:, :, i])
 
-    # grid = torch.cat([grid[:, :, :1], grid], dim=-1)
+    grid -= torch.min(grid)
+    grid /= torch.max(grid)
 
-    # plt.imshow(utils.torch2np(grid))
-    # plt.show()
-    # plt.clf()
+    grid = torch.cat([grid[:, :, :1], grid], dim=-1)
+
+    plt.imshow(utils.torch2np(grid))
+    plt.show()
+    plt.clf()
 
     rocket = Drone(discrete=True, render=True)
     env = Environment(rocket, pi_model)
@@ -60,19 +63,16 @@ def main():
             skill = input("Enter skill: ")
             try:
                 skill = [float(i.strip()) for i in skill.split(',')]
+                skill = torch.tensor(skill).float().to(utils.DEVICE)
             except:
                 continue
-            skill = torch.tensor(skill).float().to(utils.DEVICE)
         
-        batch = env.sample(1, skill=skill, greedy=False)
+        attended = (skill, torch.ones_like(skill))
+        batch = env.sample(1, skill=attended, greedy=False)
 
-        delta_l = encoder_model(batch.states[:, :2], batch.next_states[:, :2])
+        delta_l = encoder_model(batch.states)
 
-        #for i in range(2, len(batch)):
-        #    delta_l[-i] += 0.9*delta_l[-i+1]
-
-        L = basis_model(len(batch))
-        L = L / torch.norm(L, p=2, dim=-1, keepdim=True)
+        L, _ = basis_model(len(batch))
 
         proj = torch.bmm(L, delta_l.unsqueeze(-1)).squeeze(-1)
 
