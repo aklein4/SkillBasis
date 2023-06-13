@@ -29,7 +29,7 @@ DISCRETE_ACTIONS = np.array([
 
 
 class Drone:
-    def __init__(self, discrete=False, render=False, max_t = 5, boxes=None, target=np.array([19, 19])):
+    def __init__(self, discrete=False, render=False, max_t = 3, boxes=None, target=np.array([19, 19])):
         self.discrete = discrete
         self.boxes = boxes
         self.target = target

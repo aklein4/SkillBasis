@@ -21,21 +21,22 @@ DefaultConfig = Config(
     n_skills = 2,
 
     # model params
-    hidden_dim = 32,
-    n_layers = 2,
+    hidden_dim = 128,
+    n_layers = 3,
     dropout = 0.1
 
 )
 
 
 DefaultEncoder = Config(
-    obs_dim = 2
+    obs_dim = 2,
+    scale = 10
 )
 DefaultEncoder.inherit(DefaultConfig)
 
 
 DefaultPolicy = Config(
-    alpha = 0.1
+    alpha = 0.25
 )
 DefaultPolicy.inherit(DefaultConfig)
 

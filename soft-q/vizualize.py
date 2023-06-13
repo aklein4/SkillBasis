@@ -43,11 +43,11 @@ def main():
     states = []
 
     for runner in RUNNERS:
-        loc = torch.tensor(runner).to(utils.DEVICE).unsqueeze(0) * SCALE
-        skill = encoder_model(loc)
-        skill /= torch.sum(skill)
+        loc = torch.tensor(runner).to(utils.DEVICE).unsqueeze(0)
+        # skill = encoder_model(loc)
+        # skill /= torch.sum(skill)
 
-        batch = env.sample(1, skill=(skill, torch.ones_like(skill)), greedy=False)
+        batch = env.sample(1, skill=(loc, torch.ones_like(loc)), greedy=False)
         states.append(utils.torch2np(batch.states[:, :2]))
 
     for i in range(len(RUNNERS)):

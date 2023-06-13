@@ -11,22 +11,23 @@ import utils
 
 # result directory
 OUTPUT_DIR = 'test'
-SAVE_EVERY = 8
+SAVE_EVERY = 1
 
 # training parameters
 N_ITERS = 2048*2
 UPDATE_EVERY = 8
 
 N_EPISODES = 1
-SAMPLE_BATCH_SIZE = 16
+SAMPLE_BATCH_SIZE = 64
 SKILL_EPOCHS = 1
-PI_EPOCHS = 5
+PI_EPOCHS = 1
 
-LR = 1e-3
-BATCH_SIZE = 128
-BUFFER_SIZE = 100 * N_EPISODES * SAMPLE_BATCH_SIZE * 10
+LR = 3e-4
+BATCH_SIZE = 32
+BUFFER_SIZE = 30 * N_EPISODES * SAMPLE_BATCH_SIZE * 10
 
-DISCOUNT = 0.9
+SKILL_PERIOD = None
+DISCOUNT = 0.75
 
 SMOOTHING = 0.9
 
@@ -56,6 +57,7 @@ def main():
         LR,
         BATCH_SIZE,
         BUFFER_SIZE,
+        SKILL_PERIOD,
         DISCOUNT,
         SMOOTHING
     )

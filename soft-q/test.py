@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from environment import Environment
 from models import Policy, Encoder
 from drone import Drone
-from trainer import L_SCALE, CLAM
+from trainer import CLAM
 import utils
 
 import os
@@ -34,15 +34,15 @@ def main():
         if input("Continue? ") == '':
             break
 
-        
         grid = torch.zeros(20, 20)
         for i in range(-10, 10):
             for j in range(-10, 10):
-                enc = encoder_model(torch.tensor([i, j] + [0]*(encoder_model.config.state_dim-2)).float().to(utils.DEVICE))
+                s = torch.tensor([i, j] + [0]*(encoder_model.config.state_dim-2)).float().to(utils.DEVICE)
+                enc = encoder_model(s / 10)
 
                 grid[i+10, j+10] = enc[z]
 
-        grid = torch.log(torch.sigmoid(grid * L_SCALE))
+        grid = grid
 
         plt.imshow(utils.torch2np(grid))
         plt.show()
@@ -63,6 +63,7 @@ def main():
                 continue
         
         comb = encoder_model(loc) - encoder_model(torch.zeros_like(loc))
+        # comb = loc
         vals = torch.sign(comb)
         attn = torch.abs(comb) / torch.sum(torch.abs(comb))
 
@@ -71,16 +72,16 @@ def main():
         skill = (vals, attn)
         batch = env.sample(1, skill=skill, greedy=True)
 
-        l = encoder_model(batch.states[0])
+        l = encoder_model(batch.states)
         l_next = encoder_model(batch.next_states)
-        delta_l = (l_next - l) * L_SCALE
+        delta_l = l_next - l
 
         logmoid = torch.log(
-            torch.clamp(torch.sigmoid(vals * delta_l), min=CLAM)
+            torch.clamp(2 * torch.sigmoid(vals * delta_l), min=CLAM)
         )
         log_probs = torch.sum(logmoid * attn, dim=-1)
 
-        plt.plot(utils.torch2np(log_probs + 0.69))
+        plt.plot(utils.torch2np(logmoid))
         plt.legend(["1", "2"])
         plt.show()
         plt.clf()

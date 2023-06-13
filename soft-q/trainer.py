@@ -9,10 +9,11 @@ from models import Encoder, Policy
 from tqdm import tqdm
 
 
-REG_DIST = 1
+ENC_LR_COEF = 1
 
-L_SCALE = 1
-REWARD_SCALE = 500
+REG_DIST = 0
+
+REWARD_SCALE = 100
 
 CLAM = 1e-3
 
@@ -38,20 +39,18 @@ class Trainer:
 
         # target model for baseline
         self.target_pi = Policy().to(utils.DEVICE)
-        self.target_encoder = Encoder().to(utils.DEVICE)
         self._update_target()
 
     
     def _update_target(self):
         self.target_pi.load_state_dict(self.pi_model.state_dict())
-        self.target_encoder.load_state_dict(self.encoder_model.state_dict())
 
 
     def _smooth(self, accum, next):
         if accum is None:
             return next
         return self.smoothing * accum + (1 - self.smoothing) * next
-    
+
 
     def _get_z_log_prob(self, batch, metrics=False, delta=True):
 
@@ -62,7 +61,8 @@ class Trainer:
         delta_l = l_next
         if delta:
             delta_l -= l
-        delta_l *= L_SCALE
+        # delta_l = delta_l / torch.norm(delta_l, p=1, dim=-1, keepdim=True)
+        # delta_l = torch.nan_to_num(delta_l, nan=0, posinf=0, neginf=0)
 
         # get log_probs of each skill
         logmoid = torch.log(
@@ -73,46 +73,45 @@ class Trainer:
         z_log_prob = torch.sum(batch.z_attns * logmoid, dim=-1)
 
         if metrics:
-            return z_log_prob, delta_l
+            return z_log_prob, l_next
         return z_log_prob
 
 
-    def _get_mutual_info(self, batch):
-        z_log_prob = self._get_z_log_prob(batch)
+    def _get_mutual_info(self, batch, batch_size=None, delta=True):
+        if batch_size is not None:
+            infos = torch.zeros_like(batch.z_attns[:, 0])
+            for i in range(0, len(batch), batch_size):
+                infos[i:i+batch_size] = self._get_mutual_info(batch[(i, batch_size)], delta=delta)
+            return infos
+            
+        z_log_prob = self._get_z_log_prob(batch, delta=delta)
         z_log_prior = self.env.skill_generator.log_prob(len(batch))
         return z_log_prob - z_log_prior
     
 
     def _skill_loss(self, batch):
-
+        
         # get log probabilities of each skill
-        z_log_prob, delta_l = self._get_z_log_prob(batch, True, False)
+        z_log_prob, l_next = self._get_z_log_prob(batch, True, False)
 
         # want to maximize the log probability of the skills
         z_loss = -torch.mean(z_log_prob)
 
         # add L2 regularization to the distance between state encodings
-        dist_loss = torch.mean(torch.sum(REG_DIST * (delta_l**2), dim=-1))
+        dist_loss = REG_DIST * torch.mean(torch.sum((l_next)**2, dim=-1))
 
-        return z_loss + dist_loss, torch.sum(torch.mean(torch.abs(delta_l), dim=-1)).item()
+        return z_loss + dist_loss, torch.sum(torch.mean(torch.abs(l_next), dim=-1)).item()
 
 
     def _pi_loss(self, batch):
 
-        # get the mutual information
-        mutual_info = self._get_mutual_info(batch)
-
-        # get the reward
-        reward = mutual_info
-        reward = reward.detach() * REWARD_SCALE
-
         # get model predictions
         Q = self.pi_model.Q(batch.states, batch.z_vals, batch.z_attns)
         Q_a = Q[range(len(batch)), batch.actions]
-        V_next = self.target_pi.V(batch.next_states, batch.z_vals, batch.z_attns).detach()
+        V_next = self.target_pi.V(batch.next_states, batch.z_vals, batch.z_attns)
 
         # get the target value
-        target = (reward + self.discount * V_next).detach()
+        target = (batch.rewards + self.discount * V_next).detach()
 
         # loss is bellman
         loss = F.mse_loss(Q_a, target)
@@ -135,6 +134,7 @@ class Trainer:
             lr,
             batch_size,
             buffer_size,
+            skill_period,
             discount,
             smoothing
         ):
@@ -151,7 +151,7 @@ class Trainer:
 
         # initialize optimizers
         pi_opt = torch.optim.AdamW(self.pi_model.parameters(), lr=lr)
-        enc_opt = torch.optim.AdamW(self.encoder_model.parameters(), lr=lr)
+        enc_opt = torch.optim.AdamW(self.encoder_model.parameters(), lr=lr * ENC_LR_COEF)
 
         # replay buffer to avoid catastrophic forgetting
         buffer = None
@@ -161,7 +161,7 @@ class Trainer:
         for it in pbar:
 
             # get samples
-            new_buffer = self.env.sample(n_episodes, batch_size=sample_batch_size)
+            new_buffer, traj_buffer = self.env.sample(n_episodes, batch_size=sample_batch_size, skill_period=skill_period, get_seeds=True)
             if buffer is None:
                 buffer = new_buffer
             else:
@@ -169,23 +169,28 @@ class Trainer:
 
             # get the reward for the episode
             self.encoder_model.eval()
-            self.target_encoder.eval()
-            rolling_mutual = self._smooth(rolling_mutual, torch.sum(self._get_mutual_info(new_buffer)).item()/len(new_buffer))
-
+            # get rewards once
+            mutuals = self._get_mutual_info(traj_buffer, delta=False)
+            rolling_mutual = self._smooth(
+                rolling_mutual,
+                torch.mean(mutuals).item()
+            )
+            rewards = self._get_mutual_info(buffer, batch_size)
+            buffer.set("rewards", rewards.detach() * REWARD_SCALE)
+            
             """ ----- Train Skills ----- """
 
             # set model modes
             self.encoder_model.train()
-            self.target_encoder.eval()
 
             # accumulate logging info
             norm_accum = 0
 
             # train for epochs over traj buffer
             for epoch in range(z_epochs):
-                new_buffer.shuffle()
-                for i in range(0, len(new_buffer), batch_size):
-                    batch = new_buffer[(i, batch_size)]
+                traj_buffer.shuffle()
+                for i in range(0, len(traj_buffer), batch_size):
+                    batch = traj_buffer[(i, batch_size)]
 
                     enc_opt.zero_grad()
 
@@ -197,16 +202,14 @@ class Trainer:
                     norm_accum += norm / z_epochs
 
             # handle metrics
-            rolling_norm = self._smooth(rolling_norm, norm_accum/len(new_buffer))
+            rolling_norm = self._smooth(rolling_norm, norm_accum/len(traj_buffer))
 
             """ ----- Train Policy ----- """
 
             # set model modes
             self.pi_model.train()
-
             self.encoder_model.eval()
             self.target_pi.eval()
-            self.target_encoder.eval()
 
             # accumulate logging info
             q_loss_accum = 0

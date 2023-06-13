@@ -22,8 +22,8 @@ class Encoder(nn.Module):
 
     
     def forward(self, s):
-        return self.net(s[...,:self.config.obs_dim])
-    
+        return self.net(s[...,:self.config.obs_dim]) * self.config.scale
+
 
 class Policy(nn.Module):
     def __init__(self, config=configs.DefaultPolicy):

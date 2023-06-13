@@ -79,15 +79,23 @@ class ReplayBuffer:
 
         return out
     
+    
+    def set(self, name, val):
+        if name == "d":
+            self.d = val
+        else:
+            self.d[name] = val
+    
 
     def __add__(self, other):
 
         # init new buffer
-        out = ReplayBuffer(d=self.d)
+        out = ReplayBuffer()
 
         # add other buffer
-        for k in out.d.keys():
-            out.d[k] = torch.cat([out.d[k], other.d[k]], dim=0)
+        for k in self.d.keys():
+            if k in other.d.keys():
+                out.d[k] = torch.cat([self.d[k], other.d[k]], dim=0)
 
         return out
     

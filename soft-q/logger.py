@@ -1,9 +1,12 @@
 
 import torch
 
+import utils
+
 import os
 import csv
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Logger:
@@ -26,6 +29,14 @@ class Logger:
         # save location
         self.log_loc = log_loc
         self.save_every = save_every
+
+        # create a grid for vizualization
+        x_coords = np.linspace(-1, 1, 20)
+        y_coords = np.linspace(-1, 1, 20)
+        grid = np.stack(np.meshgrid(x_coords, y_coords))
+        grid = torch.from_numpy(grid).float().to(utils.DEVICE).permute(1, 2, 0)
+        self.grid = torch.zeros(20, 20, 4).to(utils.DEVICE)
+        self.grid[:, :, :2] = grid
 
         # make folder
         os.makedirs(self.log_loc, exist_ok=True)
@@ -52,8 +63,17 @@ class Logger:
         ax[0, 1].plot(self.q_losses)
         ax[0, 1].set_title("Q-value MSE Loss")
 
-        ax[1, 0].plot(self.norms)
-        ax[1, 0].set_title("delta_l L1 Norm")
+        activations = torch.zeros(20, 20, 3).to(utils.DEVICE)
+        activations[:, :, :2] = self.encoder_model(self.grid[:, :, :2])
+        activations[:, :, 2] = activations[:, :, 1]
+        activations[:, :, 1] = activations[:, :, 0]
+        for i in range(3):
+            activations[:, :, i] -= torch.min(activations[:, :, i])
+            activations[:, :, i] /= torch.max(activations[:, :, i])
+        activations = torch.sigmoid(activations)
+
+        ax[1, 0].imshow(utils.torch2np(activations))
+        ax[1, 0].set_title("Latent Space Representation")
         ax[1, 0].set_xlabel("Iteration (8 episodes per)")
         
         ax[1, 1].plot(self.entropies)

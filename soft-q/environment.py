@@ -4,6 +4,7 @@ import torch
 from replay_buffer import ReplayBuffer
 import utils
 
+import random
 
 class SkillGenerator():
     def __init__(self, n_skills):
@@ -19,6 +20,8 @@ class SkillGenerator():
         attn = self.attn.unsqueeze(0).expand(batch_size, -1).clone()
         attn.exponential_()
         # attn = torch.rand_like(attn)
+        # for i in range(batch_size):
+        #     attn[i, random.randrange(attn.shape[1])] = 1
         return vals, attn.detach() / attn.sum(dim=-1, keepdim=True)
 
     def log_prob(self, batch_size):
@@ -32,8 +35,9 @@ class Environment():
         self.env = env
 
 
-    def sample(self, n_episodes, batch_size=1, skill_period=None, skill=None, greedy=False):
+    def sample(self, n_episodes, batch_size=1, skill_period=None, skill=None, greedy=False, get_seeds=False):
         assert (skill is not None) ^ (self.skill_generator is not None)
+        assert (self.skill_generator is not None if skill_period is not None else True)
 
         # set models modes
         self.pi_model.eval()
@@ -44,6 +48,11 @@ class Environment():
         actions = []
         z_vals = []
         z_attns = []
+        
+        seeds = []
+        ends = []
+        seed_z_vals = []
+        seed_z_attns = []
 
         # nograd for inference
         with torch.no_grad():
@@ -76,6 +85,11 @@ class Environment():
 
                     # another end if done
                     if done:
+                        for i in range(batch_size):
+                            seeds.append(seed[i])
+                            ends.append(new_s[i])
+                            seed_z_vals.append(z_val[i])
+                            seed_z_attns.append(z_attn[i])
                         break
 
                     # add transition to buffer
@@ -86,14 +100,34 @@ class Environment():
                         z_vals.append(z_val[i])
                         z_attns.append(z_attn[i])
 
+                    if skill_period is not None and t % skill_period == 0:
+                        z_val, z_attn = self.skill_generator.sample(batch_size)
+
                     t += 1
                     s = new_s
 
+        if get_seeds:
+            return (
+                ReplayBuffer(
+                    states=states,
+                    next_states=next_states,
+                    actions=actions,
+                    z_vals=z_vals,
+                    z_attns=z_attns,
+                ), 
+                ReplayBuffer(
+                    states=seeds,
+                    next_states=ends,
+                    z_vals=seed_z_vals,
+                    z_attns=seed_z_attns,
+                )
+            )
+            
         return ReplayBuffer(
             states=states,
             next_states=next_states,
             actions=actions,
             z_vals=z_vals,
-            z_attns=z_attns
+            z_attns=z_attns,
         )
         
