@@ -9,9 +9,9 @@ from models import Encoder, Policy
 from tqdm import tqdm
 
 
-ENC_LR_COEF = 1
+ENC_LR_COEF = 1e-2
 
-REG_DIST = 0
+REG_DIST = 1
 
 REWARD_SCALE = 100
 
@@ -73,7 +73,7 @@ class Trainer:
         z_log_prob = torch.sum(batch.z_attns * logmoid, dim=-1)
 
         if metrics:
-            return z_log_prob, l_next
+            return z_log_prob, delta_l
         return z_log_prob
 
 
@@ -92,15 +92,15 @@ class Trainer:
     def _skill_loss(self, batch):
         
         # get log probabilities of each skill
-        z_log_prob, l_next = self._get_z_log_prob(batch, True, False)
+        z_log_prob, delta_l = self._get_z_log_prob(batch, True, True)
 
         # want to maximize the log probability of the skills
         z_loss = -torch.mean(z_log_prob)
 
         # add L2 regularization to the distance between state encodings
-        dist_loss = REG_DIST * torch.mean(torch.sum((l_next)**2, dim=-1))
+        dist_loss = REG_DIST * torch.mean(torch.sum((delta_l)**2, dim=-1))
 
-        return z_loss + dist_loss, torch.sum(torch.mean(torch.abs(l_next), dim=-1)).item()
+        return z_loss + dist_loss, torch.sum(torch.mean(torch.abs(delta_l), dim=-1)).item()
 
 
     def _pi_loss(self, batch):
@@ -170,7 +170,7 @@ class Trainer:
             # get the reward for the episode
             self.encoder_model.eval()
             # get rewards once
-            mutuals = self._get_mutual_info(traj_buffer, delta=False)
+            mutuals = self._get_mutual_info(new_buffer, delta=True)
             rolling_mutual = self._smooth(
                 rolling_mutual,
                 torch.mean(mutuals).item()
@@ -188,9 +188,9 @@ class Trainer:
 
             # train for epochs over traj buffer
             for epoch in range(z_epochs):
-                traj_buffer.shuffle()
-                for i in range(0, len(traj_buffer), batch_size):
-                    batch = traj_buffer[(i, batch_size)]
+                new_buffer.shuffle()
+                for i in range(0, len(new_buffer), batch_size):
+                    batch = new_buffer[(i, batch_size)]
 
                     enc_opt.zero_grad()
 
@@ -202,7 +202,7 @@ class Trainer:
                     norm_accum += norm / z_epochs
 
             # handle metrics
-            rolling_norm = self._smooth(rolling_norm, norm_accum/len(traj_buffer))
+            rolling_norm = self._smooth(rolling_norm, norm_accum/len(new_buffer))
 
             """ ----- Train Policy ----- """
 
