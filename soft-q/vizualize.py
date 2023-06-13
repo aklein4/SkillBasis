@@ -42,8 +42,11 @@ def main():
 
     states = []
 
-    for runner in RUNNERS:
-        loc = torch.tensor(runner).to(utils.DEVICE).unsqueeze(0)
+    for i in range(8):
+        eh = [0]*8
+        eh[i] = 1
+        
+        loc = torch.tensor(eh).to(utils.DEVICE).unsqueeze(0)
         # skill = encoder_model(loc)
         # skill /= torch.sum(skill)
 

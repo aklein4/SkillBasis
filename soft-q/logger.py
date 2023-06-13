@@ -64,7 +64,7 @@ class Logger:
         ax[0, 1].set_title("Q-value MSE Loss")
 
         activations = torch.zeros(20, 20, 3).to(utils.DEVICE)
-        activations[:, :, :2] = self.encoder_model(self.grid[:, :, :2])
+        activations[:, :, :2] = self.encoder_model(self.grid[:, :, :2])[:, :, :2]
         activations[:, :, 2] = activations[:, :, 1]
         activations[:, :, 1] = activations[:, :, 0]
         for i in range(3):
