@@ -13,7 +13,7 @@ import os
 import matplotlib.pyplot as plt
 
 
-LOAD_DIR = 'test'
+LOAD_DIR = 'lfg_delta'
 
 
 def main():
@@ -29,10 +29,12 @@ def main():
     pi_model = pi_model.to(utils.DEVICE)
     pi_model.eval()
 
+    grids = []
+
     for z in range(encoder_model.config.n_skills):
 
-        if input("Continue? ") == '':
-            break
+        # if input("Continue? ") == '':
+        #     break
 
         grid = torch.zeros(20, 20)
         for i in range(-10, 10):
@@ -42,11 +44,21 @@ def main():
 
                 grid[i+10, j+10] = enc[z]
 
-        grid = grid
+        grids.append(grid)
 
-        plt.imshow(utils.torch2np(grid))
-        plt.show()
-        plt.clf()
+
+    fix, ax = plt.subplots(1, 2)
+    for i in range(2):
+        ax[i].imshow(utils.torch2np(grids[i]))
+        ax[i].set_xticks([])
+        ax[i].set_yticks([])
+
+    # plt.imshow(utils.torch2np(grid))
+    plt.tight_layout()
+    plt.suptitle("Latent Space with 2 Skills")
+    plt.subplots_adjust(top=0.93)
+    plt.show()
+    plt.clf()
 
     rocket = Drone(discrete=True, render=True, max_t=2.5)
     env = Environment(rocket, pi_model)

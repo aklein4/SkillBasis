@@ -18,7 +18,7 @@ DefaultConfig = Config(
     action_dim = 9,
 
     # skill params
-    n_skills = 8,
+    n_skills = 2,
 
     # model params
     hidden_dim = 128,
