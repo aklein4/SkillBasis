@@ -40,10 +40,12 @@ def main():
     pi_model = Policy()
     pi_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "pi_model.pt"), map_location='cpu'))
     pi_model = pi_model.to(utils.DEVICE)
+    pi_model.eval()
 
     encoder_model = Encoder()
     encoder_model.load_state_dict(torch.load(os.path.join(LOAD_DIR, "encoder_model.pt"), map_location='cpu'))
     encoder_model = encoder_model.to(utils.DEVICE)
+    encoder_model.eval()
 
     rocket = Drone(discrete=True, render=False, max_t=3)
     env = Environment(rocket, pi_model)
